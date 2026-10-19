@@ -1,271 +1,391 @@
-# Project Spec: Natural-Language SQL & Data-Analysis Assistant (working title: "AskData")
+# Project Spec: Natural-Language SQL & Data-Analysis Assistant ("AskData")
 
-> How to use this file: paste it into your coding LLM as the project brief. Work milestone by milestone (Section 14). After each milestone, ask the LLM to review its own code against the "Definition of Done" (Section 15) before moving on.
+> Revision 2 (2026-10-20). Changes from revision 1 are summarized in the [changelog](#18-changelog-from-revision-1) at the end, and each non-obvious change is justified in `docs/decisions.md`. The phase-by-phase build order is in `docs/PLAN.md`.
 
 ---
 
-## 0. Instructions for the coding LLM
+## 0. Working rules
 
-- Build incrementally. Finish one milestone fully (code, tests, docs) before starting the next.
-- Ask before making major architectural changes that deviate from this spec.
+- Build incrementally, in the phases in `docs/PLAN.md`. A phase is finished only when its code, tests and docs are done and `ruff`, `mypy`, `pytest` (and `npm run build` once the frontend exists) are green. A phase that is red is not committed.
+- Don't pause for approval on design choices. Make the call, and record any choice that is non-obvious or departs from this spec in `docs/decisions.md` (context, decision, trade-off).
 - Prefer simple, readable, well-tested code over clever code.
-- Every module needs unit tests. Anything touching SQL execution needs security tests.
-- Never hard-code secrets. Use environment variables and provide `.env.example`.
-- Keep a `docs/decisions.md` file recording each non-obvious design decision and its trade-off.
-- Commit in small steps with conventional commit messages (feat:, fix:, test:, docs:, chore:).
+- Every module gets unit tests. Anything that touches SQL execution also gets security tests.
+- Never hard-code secrets. Read them from environment variables and keep `.env.example` current.
+- **Every test, and CI, must pass with no LLM API key.** The mock LLM provider is the default. Real model calls happen only when a key is configured.
+- Use conventional commit messages (`feat:`, `fix:`, `test:`, `docs:`, `chore:`, `ci:`). Commit at least once per phase and tag each phase (`phase-N`).
 
 ---
 
 ## 1. Product summary
 
-A web app where a user connects a database or uploads CSV/Excel files, asks questions in plain English, and receives: the generated SQL (shown and editable), the result table, an automatically chosen chart, and a short plain-language explanation. The system validates every query for safety, retries on errors, and tracks its own accuracy against an evaluation benchmark.
+AskData is a web app. A user uploads CSV/XLSX files (or, later, connects a read-only Postgres database), asks questions in plain English, and gets back:
 
-**Primary goal of the project:** a deployed, measurable, production-style flagship project for an AI/ML + software engineering portfolio.
+- the generated SQL, which is shown and can be edited,
+- the result table,
+- a chart chosen automatically,
+- a short plain-language explanation that states its assumptions.
 
-**Differentiators (must be visible in the README):**
-1. A published accuracy benchmark with numbers (execution accuracy), reproducible in CI.
-2. Safe-by-design execution (read-only, validated, sandboxed, limited).
-3. A narrow, well-chosen niche demo dataset (see Section 2).
+Every query is validated for safety before it runs. Failed queries are retried with the error fed back. The system measures its own accuracy against a benchmark that lives in the repository.
+
+**Project goal:** a deployed, measurable, production-style flagship project for an AI/ML + software-engineering portfolio.
+
+**Differentiators** (each must be visible in the README):
+1. A published, reproducible execution-accuracy benchmark, with an ablation table.
+2. Safe-by-design execution: allowlist validation, a read-only sandbox, resource limits, and a 100%-pass safety suite.
+3. A polished demo workspace in one narrow niche: personal finance (Section 2).
 
 ---
 
-## 2. Niche decision (pick ONE before building)
+## 2. Niche: personal finance, UPI and bank statements (decided)
 
-Choose one demo domain with real, messy data. Recommended options:
-- Personal finance / UPI & bank statement analysis (messy formats, very relatable)
-- Campus or club data (events, budgets, attendance)
-- Sports statistics (cricket, F1)
-- Open government / public-health datasets
+**Decision:** the demo workspace analyses personal-finance data. That means bank-account statements and UPI transactions in an Indian context: INR, UPI handles, merchants, categories and monthly budgets.
 
-The app stays general-purpose (any CSV or DB), but ship one polished demo workspace in the chosen niche, with a custom question set for the benchmark.
+**Why this niche:** the data is relatable and naturally messy, and it exercises every interesting SQL pattern: date logic, aggregation, joins and ranking. See `docs/decisions.md` (D-002).
+
+**Binding constraint:** the benchmark has to run offline and reproducibly in CI, and it has to be license-clean. Real personal statements are private, and public ones don't exist. The demo data is therefore **synthetic, produced by a seeded deterministic generator** (`scripts/generate_demo_data.py`). The generator deliberately injects real-world mess:
+- mixed date formats (`2025-03-04`, `04/03/2025`, `4-Mar-25`),
+- amounts written as `₹1,234.50`, `Rs. 1234.5`, or with a trailing `Dr`/`Cr`,
+- inconsistent merchant spellings (`SWIGGY`, `Swiggy Ltd`, `swiggy*order`),
+- blank rows, a repeated header row, trailing whitespace and mixed-case headers.
+
+**Demo tables** (after ingestion and cleaning): `accounts`, `transactions`, `merchants`, `categories`, `budgets`.
+
+The app itself stays general-purpose and accepts any CSV, XLSX or SQLite file.
 
 ---
 
 ## 3. Target users and core user stories
 
-- As a user, I sign up/log in and create a workspace.
-- As a user, I upload CSV/XLSX files or connect a read-only database (Postgres first; SQLite via upload).
-- As a user, I see an auto-generated schema summary (tables, columns, types, sample values, row counts).
-- As a user, I ask a question in natural language and get SQL + results + chart + explanation.
-- As a user, I can edit the generated SQL and re-run it.
-- As a user, I can ask follow-up questions that use conversation context ("now break that down by month").
-- As a user, I can see a history of questions, save useful queries, and export results (CSV) and charts (PNG).
-- As a user, I can give thumbs up/down and a correction on an answer.
-- As an admin/developer, I can view accuracy metrics, cost, latency, and failure categories.
+- As a visitor, I open the demo workspace with one click, no signup, and ask questions straight away.
+- As a user, I sign up or log in and create a workspace.
+- As a user, I upload CSV/XLSX files, or a SQLite file, into a workspace.
+- As a user, I see a schema summary generated for me: tables, columns, types, null %, sample values and row counts.
+- As a user, I ask a question in natural language and get back SQL, results, a chart and an explanation with its assumptions.
+- As a user, I edit the generated SQL and re-run it. The edited SQL goes through the same validation.
+- As a user, I ask follow-up questions that rely on conversation context ("now break that down by month").
+- As a user, I get a clarifying question when my question is ambiguous, and a clear "can't answer, this data is missing" when it can't be answered.
+- As a user, I see my question history, save useful queries, and export results as CSV and charts as PNG.
+- As a user, I give an answer thumbs up or down and can attach a corrected SQL query.
+- As a developer, I see accuracy, cost, latency and failure categories on a metrics page, and I can compare two benchmark runs.
 
 ---
 
 ## 4. Functional requirements
 
 ### 4.1 Data ingestion
-- CSV and XLSX upload (size limit, e.g. 50 MB; row limit configurable).
-- Type inference with manual override; handle messy headers, mixed types, dates, currency symbols, empty rows.
-- Store uploaded data as tables in an isolated per-workspace schema or per-workspace SQLite/DuckDB file.
-- Optional: connect external Postgres with a read-only credential; credentials encrypted at rest.
-- Data profiling on ingest: column types, null %, distinct counts, min/max, top values, sample rows.
+- Accept CSV, XLSX and SQLite uploads. The size limit is configurable (default 50 MB), and so is the row limit (default 1,000,000).
+- Clean the data robustly:
+  - normalise headers to snake_case, de-duplicated and SQL-safe,
+  - drop blank and repeated-header rows,
+  - strip whitespace,
+  - parse currency (₹, Rs., commas, Dr/Cr sign suffixes),
+  - parse percentages and booleans,
+  - parse dates and datetimes in multiple formats; a column is inferred as a date only when at least 95% of its non-null values parse.
+- Type inference with a manual override: the user can PATCH a column type, which re-loads that table.
+- Storage: **one DuckDB file per workspace** (`data/workspaces/<id>.duckdb`). This is the isolation boundary.
+- Profile every table on ingest:
+  - row count, plus per column: type, null %, distinct count, min/max,
+  - top-5 values (low-cardinality columns only),
+  - 3 sample values.
+- Ingestion runs as a background task. The source moves through `pending → processing → ready | failed`, and on failure an error message is stored.
+- Stretch: an external read-only Postgres connection, with credentials encrypted at rest using Fernet (key from env).
 
 ### 4.2 Schema understanding
-- Build a "schema card" per table/column: name, type, description (LLM-drafted, user-editable), sample values.
-- Schema linking: when the schema is large, retrieve only relevant tables/columns for the question (embedding + keyword match).
-- Store optional business glossary (e.g. "revenue = SUM(amount) where type='credit'") that is injected into prompts.
+- Build a **schema card** for every table and column: name, type, profile stats, sample values, and a description that the LLM drafts and the user can edit.
+- **Schema linking:** when the schema is large (more than `SCHEMA_LINK_THRESHOLD` columns, default 40), send the model only the relevant tables and columns. Relevance is scored with BM25 over table/column names, descriptions and sample values, plus a glossary-term boost. Embeddings are an optional later upgrade behind the same interface.
+- **Business glossary** per workspace (e.g. "spend = SUM(amount) WHERE direction='debit'"). Glossary terms that match the question are injected into the prompt.
+- Join hints come from columns whose names match across tables and whose values overlap (inferred foreign keys).
 
 ### 4.3 Text-to-SQL pipeline
-1. Understand the question (classify: aggregation, filter, join, trend, comparison, unanswerable/ambiguous).
-2. Schema linking (select relevant schema subset + sample values).
-3. Generate SQL with a structured output (SQL + short reasoning + assumptions + confidence).
-4. Validate SQL (see 4.4).
-5. Execute in the sandbox with timeout and row limit.
-6. On error or empty/suspicious result: self-correct loop (max 2-3 attempts) feeding the error back.
-7. Generate explanation and pick a chart spec.
-8. Return everything to the UI with the assumptions shown.
-- Handle ambiguity: if the question is ambiguous, ask a clarifying question instead of guessing.
-- Handle unanswerable questions: say so, and state which data is missing.
-- Support follow-ups via conversation memory (resolve references like "that", "same period").
+Each stage is a function with typed inputs and outputs and is traced (Section 4.8).
 
-### 4.4 SQL safety and validation (critical)
-- Parse SQL with a real parser (e.g. `sqlglot`) and allow only a single SELECT (and WITH/CTE) statement.
-- Block: INSERT/UPDATE/DELETE/DROP/ALTER/CREATE/TRUNCATE/GRANT, multiple statements, system tables, file functions, `COPY`, `pg_sleep`, etc.
-- Allowlist tables/columns to the workspace schema only.
-- Run with a read-only DB role; set statement timeout, row limit (auto-append LIMIT), and memory limits.
-- Row-level or workspace isolation so users can never read other workspaces' data.
-- Treat all user data and column values as untrusted (prompt-injection via cell contents): never let data text be interpreted as instructions.
-- Log every executed query with user, workspace, duration, rows returned.
+1. **Context resolution:** fold the recent conversation turns (last N=4) into a self-contained question when the new question refers back ("that", "same period").
+2. **Schema linking:** pick the relevant schema subset with sample values, plus matching glossary terms.
+3. **Generation** with structured output: `{kind: sql|clarify|unanswerable, sql, reasoning, assumptions[], tables_used[], confidence (0–1), clarifying_question, missing_data}`.
+   - The model classifies the question (aggregation, filter, join, trend, comparison) inside the same call instead of in a separate call, which saves a round trip.
+4. **Validation** with `sqlguard` (Section 4.4).
+5. **Execution** in the sandbox, with a timeout and a row cap.
+6. **Self-correction:** on a validation error, an execution error, or a suspicious result (empty, or all-NULL aggregates), retry with the error and the previous SQL fed back. At most `MAX_CORRECTION_ATTEMPTS` retries (default 2). Every attempt is recorded.
+7. **Explanation and chart:** a rule-based chart picker runs first. A short LLM explanation (cheap model) summarises the result, using only aggregated or truncated rows.
+8. **Response:** everything goes back to the UI with warnings and assumptions. It is streamed over SSE as stage events (`sql` → `rows` → `chart` → `explanation` → `done`).
+
+- **Ambiguity:** return `kind=clarify` with one specific question. Don't guess.
+- **Unanswerable:** return `kind=unanswerable` and say which data is missing.
+- **Model routing:** generation uses the strong model (`LLM_MODEL_STRONG`, default `claude-opus-5-5`). Explanations and column descriptions use the fast model (`LLM_MODEL_FAST`, default `claude-haiku-5-5`). Both are configurable.
+
+### 4.4 SQL safety and validation (critical, highest-priority code)
+Execution runs on **DuckDB**, so the threat model is DuckDB-specific. The rules are **allowlist-based**: anything not explicitly allowed is rejected.
+
+**Static validation** (`sqlglot`, `dialect="duckdb"`):
+- The SQL must parse into **exactly one** statement, and its root must be `SELECT`, a `UNION`/`INTERSECT`/`EXCEPT` of selects, or a `WITH … SELECT`. Anything else is rejected: DML, DDL, `ATTACH`, `DETACH`, `INSTALL`, `LOAD`, `COPY`, `EXPORT`, `IMPORT`, `PRAGMA`, `SET`, `RESET`, `CALL`, `USE`, `CHECKPOINT`, `VACUUM`, transactions, and multiple statements.
+- **Table allowlist:** every table reference must be a workspace table or a CTE defined in the same query. Anything else is rejected: schema-qualified references to other catalogs, `information_schema.*`, `pg_catalog.*`, `duckdb_*()`, `sqlite_master`, and **table functions** (`read_csv*`, `read_parquet`, `read_json*`, `read_text`, `read_blob`, `glob`, `range`, `generate_series` used as a table, `query`, `query_table`, and others).
+- **Function allowlist:** only approved scalar, aggregate and window functions are allowed: math, string, date/time, conditional, cast, and statistical aggregates. Unknown or anonymous functions are rejected, as are `getenv`, `current_setting` and anything file- or system-related.
+- **Column check:** column references are resolved against the workspace schema where possible. Unknown columns produce a friendly validation error, which the self-correction loop can use.
+- **Cost guards:** reject a `CROSS JOIN` (or a comma-join without a join predicate) between tables whose estimated product exceeds `MAX_CROSS_PRODUCT_ROWS`. Reject recursive CTEs.
+- **Row cap:** wrap the query as `SELECT * FROM (<query>) LIMIT <row_cap + 1>` so truncation can be detected without changing the query's meaning.
+
+**Runtime sandbox:**
+- The connection opens the workspace DuckDB file with `read_only=True` and these settings:
+  - `enable_external_access=false`,
+  - `autoload_known_extensions=false`, `autoinstall_known_extensions=false`,
+  - `memory_limit` (default 512MB), `threads` (default 2),
+  - and last, `lock_configuration=true` so the query can't undo any of them.
+- Timeout: DuckDB has no statement timeout, so a watchdog timer calls `connection.interrupt()` after `QUERY_TIMEOUT_S` (default 10 s).
+- Workspace isolation: a connection can only ever open its own workspace's file, and paths are derived from server-side IDs, never from user input.
+
+**Prompt-injection hygiene:**
+- Cell values and column names are untrusted. They go into prompts only inside clearly delimited data blocks, with an instruction that data is never instructions.
+- The LLM's SQL is always validated, whatever the model says about its own safety.
+
+**Audit:** every executed query is logged with user, workspace, SQL hash, duration, rows returned and status.
 
 ### 4.5 Visualization
-- Rule-based + LLM-assisted chart selection (bar, line, pie, scatter, table-only) from result shape.
-- Render in the frontend with a charting library (e.g. Recharts/Plotly/ECharts).
-- Chart spec returned as JSON (type, x, y, series, title), validated before rendering.
+- **Rule-based chart picker** works from the result's shape and types:
+  - 1 row × 1 numeric → KPI card,
+  - temporal x + numeric → line,
+  - categorical (≤ 20 distinct) + numeric → bar; a pie only when there are ≤ 6 categories and the values are non-negative parts of a whole,
+  - two numerics → scatter,
+  - anything else → table only.
+- The chart spec is JSON (`{type, x, y[], series?, title}`) and is validated with Pydantic before it reaches the frontend. Columns referenced in the spec must exist in the result.
+- The frontend renders it with Recharts. Charts export as PNG.
 
 ### 4.6 Explanation and trust features
-- Plain-language answer summarizing the result.
-- "Show your work": SQL, assumptions, tables/columns used.
-- Confidence indicator and warnings (e.g. "result is empty", "query returned truncated rows").
-- Feedback: thumbs up/down + optional corrected SQL, stored for evaluation and few-shot improvement.
+- A plain-language answer that cites concrete numbers from the result.
+- "Show your work": the SQL, its assumptions, the tables used, and the number of attempts.
+- Confidence badge plus warnings: empty result, truncated at N rows, self-corrected after K attempts, low confidence.
+- Feedback: 👍/👎, optionally with corrected SQL and a comment. Corrected SQL is validated before it is stored. Feedback is stored as a candidate source of few-shot examples, but never from the benchmark (Section 16).
 
-### 4.7 Auth, tenancy, and limits
-- Email/password and/or OAuth (Google/GitHub); JWT or session cookies.
-- Workspaces with isolation; per-user rate limits and daily LLM-cost caps.
-- Basic roles: owner, member.
+### 4.7 Auth, tenancy and limits
+- Email/password auth (argon2 hashes) with a JWT in an httpOnly cookie. OAuth is a stretch goal.
+- Workspaces with members; roles are `owner` and `member`.
+- A public **demo workspace** that is read-only and needs no login. It is rate-limited per IP.
+- Per-user rate limit (default 30 asks/min) and a daily LLM cost cap (default $1/user/day), both enforced in process. Redis is an optional backend behind the same interface.
 
 ### 4.8 Observability
-- Structured logging, request IDs.
-- Tracing of each pipeline stage (schema linking, generation, validation, execution, correction) with latency and token cost (Langfuse or OpenTelemetry).
-- Metrics dashboard: queries/day, success rate, average latency, cost per query, correction-loop rate, thumbs-down rate.
+- Structured JSON logs that carry a request ID (`X-Request-ID`) on every line.
+- Per-stage tracing (context, linking, generation, validation, execution, correction, explanation), with latency, tokens and cost, stored on `query_runs.trace` as JSON. An OpenTelemetry exporter is optional.
+- `/api/v1/metrics`: queries per day, success rate, p50/p95 latency, cost per query, correction-loop rate, thumbs-down rate, and the failure-category breakdown.
+- Error monitoring: Sentry, enabled only when `SENTRY_DSN` is set.
 
 ---
 
 ## 5. Non-functional requirements
 
-- Correctness: measured execution accuracy on the benchmark; target numbers set in Section 9.
-- Security: see 4.4; dependency scanning; secret scanning; no secrets in repo/history.
-- Performance: p50 end-to-end under ~5 s, p95 under ~12 s for typical queries; cache schema cards and repeated queries.
-- Cost: per-query cost tracked; cheaper model for simple steps, stronger model only when needed (routing).
-- Reliability: retries with backoff on LLM calls; graceful degradation messages.
-- Privacy: uploaded data deletable by the user; state retention policy in README.
-- Accessibility and responsive UI.
+- **Correctness:** execution accuracy measured on the benchmark (Section 9).
+- **Security:** Section 4.4, plus dependency audit (`pip-audit`, `npm audit`) and secret scanning (gitleaks) in CI. No secrets in the repo or its history.
+- **Performance:** typical questions on the demo data should come back in under ~5 s end to end at p50 and under ~12 s at p95. Schema cards and identical (workspace, question, schema-hash) answers are cached.
+- **Cost:** tracked per query. Routing between the strong and fast models (Section 4.3). Prompt caching on the static system prompt and schema block.
+- **Reliability:** LLM calls retry with exponential backoff (the SDK's built-in retries plus one pipeline-level retry). When the LLM is unavailable, the user gets a clear message and can still run SQL by hand.
+- **Privacy:** users can delete uploaded data, and deleting the workspace deletes its DuckDB file. The retention policy is stated in the README.
+- **Accessibility:** keyboard-navigable, labelled controls, colour-blind-safe chart palette, responsive down to 375 px.
 
 ---
 
 ## 6. Architecture
 
 ```
-[Next.js/React UI]
-       |
-   HTTPS/REST (+ SSE for streaming)
-       |
+[Next.js (App Router, TS) UI]
+        |  REST + SSE (/api/v1)
 [FastAPI backend]
-   |-- Auth & workspace service
-   |-- Ingestion service (parse, profile, load)
-   |-- Query service (the text-to-SQL pipeline)
-   |-- Eval service (benchmark runner, metrics)
-   |-- Worker queue (ingestion + long jobs)
-       |
-[Postgres (app data + pgvector)]   [Per-workspace data store: Postgres schemas or DuckDB/SQLite files]
-[Redis (cache, rate limit, queue)]
-[LLM provider(s)] [Object storage for uploads]
+   ├─ auth & workspaces
+   ├─ ingestion (parse → clean → profile → load DuckDB)   ← BackgroundTasks
+   ├─ schema (cards, glossary, linking)
+   ├─ text2sql pipeline ──► llm (provider interface: anthropic | mock)
+   │        └─► sqlguard ──► executor (sandboxed DuckDB, read-only)
+   ├─ charts / explanations
+   ├─ eval (benchmark runner, metrics, compare)
+   └─ observability (logging, tracing, metrics, rate/cost limits)
+        |
+[App DB: SQLite (local) / Postgres (deploy) via SQLAlchemy + Alembic]
+[Per-workspace data: DuckDB files]      [Uploads: local disk / object storage]
 ```
 
-Design notes:
-- LLM access behind a provider-agnostic interface so models can be swapped and mocked in tests.
-- Prompts live in versioned files, not inline strings. Every prompt change is evaluated on the benchmark.
-- Stream partial results (SQL first, then results, then explanation) to improve perceived speed.
+**Design notes**
+- LLM access goes through a `LLMProvider` protocol, with `AnthropicProvider` and a deterministic `MockProvider`. The mock answers known benchmark-style questions from a fixture map, so pipeline tests are meaningful without a key.
+- Prompts live in `backend/app/prompts/*.md` with a version header. `prompt_version` is stored on every run and every eval run.
+- The app DB is kept dialect-agnostic: no SQLite-only or Postgres-only types, and JSON columns use SQLAlchemy `JSON`.
+- No Redis in the default setup. Rate limiting, caching and jobs run in process, behind interfaces that allow Redis/RQ later (D-004).
 
 ---
 
-## 7. Suggested tech stack
+## 7. Tech stack
 
-- Frontend: Next.js (TypeScript), Tailwind, a charting library, a SQL editor component (Monaco/CodeMirror).
-- Backend: Python 3.11+, FastAPI, Pydantic, SQLAlchemy, Alembic migrations.
-- Data/engine: Postgres + pgvector for app data; DuckDB or SQLite for per-workspace uploaded data (simplest isolation).
-- SQL parsing: `sqlglot`.
-- Queue/cache: Redis + RQ or Celery (or ARQ).
-- LLM: provider-agnostic wrapper; structured outputs via JSON schema; tracing with Langfuse.
-- Testing: pytest, pytest-asyncio, Playwright (a few end-to-end tests), hypothesis for SQL-validator fuzzing.
-- Tooling: ruff, mypy, pre-commit.
-- DevOps: Docker, docker-compose, GitHub Actions.
-- Deployment: Fly.io / Render / Railway (backend), Vercel (frontend), managed Postgres.
+- **Frontend:** Next.js 15 (App Router, TypeScript), Tailwind CSS, Recharts, CodeMirror 6 (SQL editor), TanStack Table.
+- **Backend:** Python 3.11, FastAPI, Pydantic v2, pydantic-settings, SQLAlchemy 2, Alembic, uv for dependency management.
+- **Data engine:** DuckDB (per workspace), pandas and openpyxl (ingestion parsing).
+- **SQL parsing:** `sqlglot`.
+- **LLM:** official `anthropic` Python SDK behind the provider interface, with structured JSON outputs. Default models are `claude-opus-5-5` (strong) and `claude-haiku-5-5` (fast).
+- **Testing:**
+  - pytest and hypothesis (validator fuzzing),
+  - httpx TestClient for API tests,
+  - a few Playwright end-to-end tests (stretch).
+- **Tooling:** ruff (lint and format), mypy (strict on `sqlguard` and `executor`), pre-commit.
+- **DevOps:** Dockerfiles, docker-compose, GitHub Actions.
+- **Deployment:** backend on Fly.io, Render or Railway with a persistent volume for DuckDB files; frontend on Vercel; managed Postgres for the app DB.
 
 ---
 
-## 8. Data model (core tables)
+## 8. Data model (app DB)
 
-- `users` (id, email, password_hash/oauth_id, created_at)
-- `workspaces` (id, owner_id, name, created_at)
+- `users` (id, email, password_hash, created_at)
+- `workspaces` (id, owner_id, name, is_demo, created_at)
 - `workspace_members` (workspace_id, user_id, role)
-- `data_sources` (id, workspace_id, type [upload|postgres], status, encrypted_credentials, created_at)
-- `tables_meta` (id, source_id, name, row_count, description)
-- `columns_meta` (id, table_id, name, type, null_pct, distinct_count, sample_values, description, embedding)
+- `data_sources` (id, workspace_id, type [csv|xlsx|sqlite|postgres], filename, status, error, encrypted_credentials, created_at)
+- `tables_meta` (id, source_id, workspace_id, name, row_count, description)
+- `columns_meta` (id, table_id, name, type, null_pct, distinct_count, min_value, max_value, top_values JSON, sample_values JSON, description)
 - `glossary_terms` (id, workspace_id, term, definition)
-- `conversations` (id, workspace_id, user_id, created_at)
-- `messages` (id, conversation_id, role, content, created_at)
-- `query_runs` (id, message_id, generated_sql, final_sql, status, error, attempts, rows_returned, duration_ms, tokens_in, tokens_out, cost, model, prompt_version, chart_spec)
-- `feedback` (id, query_run_id, rating, corrected_sql, comment)
-- `saved_queries` (id, workspace_id, title, sql, created_by)
-- `eval_datasets` (id, name, description), `eval_cases` (id, dataset_id, question, gold_sql, gold_result_hash, difficulty, tags)
-- `eval_runs` (id, dataset_id, git_sha, model, prompt_version, started_at), `eval_results` (id, run_id, case_id, predicted_sql, exec_match, error_type, latency, cost)
+- `conversations` (id, workspace_id, user_id, title, created_at)
+- `messages` (id, conversation_id, role, content, query_run_id, created_at)
+- `query_runs`:
+  - identity and content: id, workspace_id, conversation_id, question, resolved_question, kind,
+  - SQL: generated_sql, final_sql,
+  - outcome: status, error, error_category, attempts, rows_returned, truncated,
+  - cost and timing: duration_ms, tokens_in, tokens_out, cost_usd,
+  - provenance: model, prompt_version,
+  - output and trace: chart_spec JSON, explanation, assumptions JSON, confidence, trace JSON, created_at
+- `feedback` (id, query_run_id, user_id, rating, corrected_sql, comment, created_at)
+- `saved_queries` (id, workspace_id, title, sql, created_by, created_at)
+- `eval_runs` (id, dataset, git_sha, model, prompt_version, config JSON, started_at, finished_at, summary JSON)
+- `eval_results` (id, run_id, case_id, predicted_sql, exec_match, kind_match, error_type, attempts, latency_ms, cost_usd)
+
+Eval datasets and cases live as versioned files in `eval_data/` rather than in DB tables, so they are reviewed in git (D-006).
 
 ---
 
 ## 9. Evaluation and benchmark (the main differentiator)
 
 ### 9.1 Benchmark sets
-- Custom set: 80-150 question/SQL pairs on the niche dataset, with difficulty tags (easy single-table, joins, aggregations, date logic, subqueries, ambiguous, unanswerable).
-- Public set: a subset (e.g. 100-200 cases) of a public text-to-SQL benchmark such as Spider or BIRD for an external reference number.
-- Hand-verify gold SQL for the custom set; report the verified error rate of your own dataset.
+- **Custom set** (`eval_data/finance_v1.jsonl`): 80 or more question/gold-SQL pairs on the seeded demo data. Each case is tagged with a difficulty (`easy`, `medium`, `hard`) and categories (`single_table`, `join`, `aggregation`, `date_logic`, `subquery`, `window`, `ambiguous`, `unanswerable`).
+  - Ambiguous and unanswerable cases carry an expected `kind`, not SQL.
+  - Every gold query runs in CI against the generated data, so a broken gold query fails the build.
+  - The README reports a hand-verification log, including an error-rate estimate for the gold set.
+- **Smoke subset:** cases flagged `smoke: true` (~25), stratified across categories.
+- **Public set (stretch):** a pluggable loader for a Spider/BIRD dev subset. It is downloaded by a script, never committed, and its license is noted.
 
-### 9.2 Metrics
-- Execution accuracy (result-set match, order-insensitive unless ORDER BY is required).
-- Valid-SQL rate and execution-error rate.
-- Self-correction recovery rate (how many initial failures get fixed by the retry loop).
-- Ambiguity/unanswerable handling accuracy.
-- Safety suite pass rate (see 9.4).
-- Latency (p50/p95) and cost per query.
-- Breakdown by difficulty tag and by error category (wrong table, wrong join, wrong aggregation, wrong filter, date handling, hallucinated column).
+### 9.2 Metrics (precise definitions)
+- **Execution match:** the predicted and gold result sets are equal under these rules:
+  - Columns are compared as an unordered multiset of column vectors, so column order and aliases are ignored.
+  - Rows are compared as a multiset unless the gold SQL has a top-level `ORDER BY`, in which case order matters.
+  - Floats match within a relative tolerance of 1e-4 and an absolute tolerance of 1e-6.
+  - `NULL` equals `NULL`.
+  - Dates and timestamps are compared as ISO strings.
+  - Extra predicted columns are allowed only when the gold columns are a subset and the row count matches ("superset-column match", reported separately from strict match).
+- **Kind accuracy:** for ambiguous and unanswerable cases, the predicted `kind` equals the expected `kind`.
+- **Valid-SQL rate** (passes `sqlguard`) and **execution-error rate**.
+- **Self-correction recovery rate:** cases that were wrong on attempt 1 and correct on the final attempt, divided by cases wrong on attempt 1.
+- **Safety suite pass rate** (Section 9.4).
+- Latency p50/p95 and cost per case.
+- Breakdowns by difficulty, category and **error category**. Error categories are assigned by heuristic diffs between predicted and gold SQL: wrong table, wrong join, wrong aggregation, wrong filter, date handling, hallucinated column, execution error, and other.
+- Confidence intervals: run N repeats (default 3) and report the mean ± 95% CI (bootstrap).
 
-### 9.3 Ablations (include results in README)
-- Baseline (schema only) vs. + sample values vs. + schema linking vs. + glossary vs. + self-correction vs. + few-shot examples from feedback.
-- Cheap model vs. stronger model vs. routed combination: accuracy vs. cost curve.
+### 9.3 Ablations (results go in the README)
+- Pipeline configs are switched by flags:
+  - `schema_only`,
+  - `+samples`,
+  - `+linking`,
+  - `+glossary`,
+  - `+self_correction`,
+  - `+few_shot` (few-shot examples come only from a separate `eval_data/fewshot_pool.jsonl` that has no overlap with the benchmark).
+- Models: strong only, fast only, and routed. The result is an accuracy-vs-cost table.
 
 ### 9.4 Safety test suite
-- Attempted destructive statements, multi-statement injection, system-table access, cross-workspace access, expensive cross joins, prompt injection through cell contents and column names. Target: 100% blocked, with tests for each.
+- `backend/tests/security/` covers each attack category with explicit cases:
+  - destructive statements, multi-statement injection, comment and obfuscation tricks,
+  - file and table functions, extension loading, settings changes,
+  - system catalog access, cross-workspace access,
+  - expensive cross joins, timeouts and memory blowups,
+  - prompt injection through cell values and column names.
+- Hypothesis fuzzing: generated statements must never pass validation unless they are a single allowlisted SELECT.
+- **Target: 100% blocked.** The suite runs on every commit.
 
 ### 9.5 CI integration
-- A fast smoke benchmark (e.g. 20-30 cases) runs on every PR; the full benchmark runs nightly or on demand.
-- PR comment with a before/after score table; the check fails if accuracy drops by more than a set threshold (use repeated runs or fixed seeds to handle noise).
+- Every push runs:
+  - lint and types,
+  - unit and security tests,
+  - a gold-SQL validity check,
+  - the **mock-provider pipeline benchmark**, which checks wiring and metrics code deterministically.
+- The real-model smoke benchmark runs on PRs only when the `ANTHROPIC_API_KEY` secret is present, and otherwise skips with a clear message.
+  - It posts a before/after table as a PR comment.
+  - The check fails if smoke accuracy drops more than `EVAL_REGRESSION_THRESHOLD` (default 5 points) below the baseline file `eval_data/baseline.json`.
+- The full benchmark runs nightly (cron) and on manual dispatch, with the same key condition.
 
 ---
 
-## 10. API surface (REST, versioned under `/api/v1`)
+## 10. API surface (REST, under `/api/v1`)
 
-- Auth: `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /me`
-- Workspaces: `GET/POST /workspaces`, `GET/DELETE /workspaces/{id}`
-- Data sources: `POST /workspaces/{id}/sources/upload`, `POST /workspaces/{id}/sources/connect`, `GET /workspaces/{id}/sources`, `DELETE /sources/{id}`
-- Schema: `GET /sources/{id}/schema`, `PATCH /columns/{id}` (edit descriptions), `GET/POST /workspaces/{id}/glossary`
-- Query: `POST /workspaces/{id}/ask` (question + conversation id; supports streaming), `POST /workspaces/{id}/sql/run` (edited SQL, same validation)
-- History: `GET /workspaces/{id}/conversations`, `GET /conversations/{id}`, saved queries CRUD
-- Feedback: `POST /query-runs/{id}/feedback`
-- Export: `GET /query-runs/{id}/export?format=csv`
-- Eval (admin): `POST /eval/runs`, `GET /eval/runs/{id}`, `GET /eval/compare?a=&b=`
-- Health: `GET /health`
+- **Auth:** `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`
+- **Workspaces:** `GET/POST /workspaces`, `GET/DELETE /workspaces/{id}`, `GET /workspaces/demo`
+- **Sources:**
+  - `POST /workspaces/{id}/sources/upload` (multipart)
+  - `GET /workspaces/{id}/sources`
+  - `GET /sources/{id}`
+  - `DELETE /sources/{id}`
+- **Schema:**
+  - `GET /workspaces/{id}/schema`
+  - `PATCH /columns/{id}` (description or type override)
+  - `PATCH /tables/{id}`
+  - `GET/POST /workspaces/{id}/glossary`
+  - `DELETE /glossary/{id}`
+- **Query:**
+  - `POST /workspaces/{id}/ask` (JSON response, or SSE stream with `Accept: text/event-stream`)
+  - `POST /workspaces/{id}/sql/run` (edited SQL, same validation)
+- **History:**
+  - `GET /workspaces/{id}/conversations`
+  - `GET /conversations/{id}`
+  - `GET/POST /workspaces/{id}/saved-queries`
+  - `DELETE /saved-queries/{id}`
+- **Feedback:** `POST /query-runs/{id}/feedback`
+- **Export:** `GET /query-runs/{id}/export?format=csv`
+- **Eval (admin):** `GET /eval/runs`, `GET /eval/runs/{id}`, `GET /eval/compare?a=&b=`. Runs are started from the CLI (`python -m app.eval.run`) because they are long-running.
+- **Metrics:** `GET /metrics`
+- **Health:** `GET /health` (liveness), `GET /health/ready` (DB reachable)
 
 ---
 
 ## 11. Frontend pages and components
 
-- Landing page with a one-click demo workspace (no signup) using the niche dataset.
-- Auth pages; workspace switcher.
-- Data page: upload/connect, ingestion progress, schema explorer with editable descriptions.
-- Chat/analysis page: question box with suggested questions, streamed response, SQL panel (editable, "Run again"), results table (sortable, paginated), chart, explanation, assumptions, feedback buttons, follow-up input.
-- History and saved queries.
-- Admin/metrics page: accuracy over time, failure categories, cost and latency charts, benchmark run comparison.
-- Empty, loading, and error states for everything.
+- **Landing page** (`/`): pitch, the benchmark headline number, and a **Try the demo** button that needs no signup.
+- **Auth pages** (`/login`, `/register`) and a workspace switcher.
+- **Data page** (`/w/[id]/data`): upload with ingestion status polling, a schema explorer with editable descriptions and type overrides, and a glossary editor.
+- **Ask page** (`/w/[id]/ask`):
+  - question box with suggested questions,
+  - streamed response stages,
+  - SQL panel (CodeMirror, editable, **Run**),
+  - results table (sortable, paginated),
+  - chart and explanation,
+  - assumptions and warnings,
+  - feedback, and follow-up input.
+- **History page** (`/w/[id]/history`): conversations and saved queries.
+- **Metrics page** (`/metrics`): accuracy by run, failure categories, cost and latency, and a two-run comparison.
+- Every view has empty, loading and error states.
 
 ---
 
 ## 12. Repository structure
 
 ```
-askdata/
+/
   backend/
     app/
-      api/            # routers
-      core/           # config, security, logging
-      db/             # models, migrations
+      api/            # routers (v1)
+      core/           # config, logging, security, request-id, limits
+      db/             # SQLAlchemy models, session, alembic/
       services/
-        ingestion/
-        schema/
-        text2sql/     # pipeline stages
-        sqlguard/     # parser + validation
-        execution/
-        charts/
-        llm/          # provider-agnostic client
-      eval/           # benchmark runner, metrics
+        ingestion/    # parse, clean, infer types, profile, load
+        schema/       # schema cards, linking, glossary
+        sqlguard/     # parser-based validator (allowlist)
+        execution/    # sandboxed DuckDB executor
+        text2sql/     # pipeline stages + orchestrator
+        charts/       # chart picker + spec model
+        llm/          # provider protocol, anthropic, mock
+      eval/           # runner, matching, metrics, compare, CLI
       prompts/        # versioned prompt files
-    tests/
-  frontend/
-  eval_data/          # benchmark datasets + gold SQL
-  docs/               # architecture, decisions, evaluation methodology
-  scripts/
+    tests/            # unit/, security/, api/, eval/
+    pyproject.toml
+  frontend/           # Next.js app
+  eval_data/          # finance_v1.jsonl, fewshot_pool.jsonl, baseline.json
+  scripts/            # generate_demo_data.py, seed_demo.py
+  docs/               # SPEC.md, PLAN.md, decisions.md, evaluation.md, architecture.md
   docker-compose.yml
   .github/workflows/  # ci.yml, eval.yml
   .env.example
@@ -277,52 +397,77 @@ askdata/
 
 ## 13. DevOps and quality
 
-- Docker Compose for local development (backend, frontend, Postgres, Redis).
-- GitHub Actions: lint (ruff), type check (mypy), unit tests, safety tests, frontend build, smoke benchmark; nightly full benchmark; Docker image build.
-- Pre-commit hooks; secret scanning and dependency audit enabled.
-- Seed script to load the demo dataset and benchmark.
-- Public deployment with a health check and error monitoring (e.g. Sentry).
+- Local development works without Docker: `uv run` for the backend and `npm run dev` for the frontend, with SQLite as the app DB.
+- Docker Compose (backend, frontend, Postgres) is provided for parity with deployment.
+- GitHub Actions:
+  - `ci.yml`: ruff, mypy, pytest (unit, security, api, eval wiring), gold-SQL check, frontend lint/typecheck/build, pip-audit, gitleaks.
+  - `eval.yml`: the keyed smoke benchmark on PRs, plus nightly and manual full runs.
+- Pre-commit hooks: ruff and the basic file checks.
+- `scripts/seed_demo.py` generates the demo data, ingests it into the demo workspace, and loads the glossary.
+- Deployment: health checks, Sentry (optional), and a persistent volume for DuckDB.
 
 ---
 
 ## 14. Milestones
 
-**M0 - Setup (2-3 days):** repo, Docker Compose, CI skeleton, config, logging, DB migrations, LLM client wrapper with a mock.
-**M1 - Ingestion and schema (4-5 days):** CSV/XLSX upload, type inference, profiling, schema cards, schema explorer UI.
-**M2 - Core text-to-SQL (5-6 days):** pipeline with structured outputs, SQL validator, sandboxed execution, results table, basic chat UI.
-**M3 - Reliability (4-5 days):** self-correction loop, ambiguity and unanswerable handling, follow-up context, glossary, schema linking.
-**M4 - Charts and explanations (3 days):** chart selection and rendering, explanation, export, history, saved queries.
-**M5 - Evaluation (5-6 days):** benchmark datasets, runner, metrics, ablations, safety suite, CI integration, admin metrics page.
-**M6 - Auth, limits, observability (3-4 days):** auth, workspaces, rate and cost limits, tracing, error monitoring.
-**M7 - Deploy and polish (4-5 days):** public deployment, demo workspace, README with results, architecture diagram, demo GIF, short write-up.
-**M8 - Stretch (optional):** external Postgres connections, glossary auto-suggestions, few-shot learning from thumbs-up corrections, query-cost estimation, scheduled reports, voice input.
+`docs/PLAN.md` holds the detailed, phase-by-phase version. Summary:
+
+| Phase | Scope |
+|---|---|
+| P0 | Spec revision, plan, repo bootstrap |
+| P1 | Backend foundation: config, logging, app DB + migrations, LLM interface + mock + Anthropic, health, CI |
+| P2 | Demo-data generator, ingestion (clean/infer/profile/load), schema cards, source and schema APIs |
+| P3 | `sqlguard` + sandboxed executor + safety suite + fuzzing |
+| P4 | Text-to-SQL pipeline: linking, generation, self-correction, clarify/unanswerable, follow-ups, glossary; ask/run APIs, SSE |
+| P5 | Charts, explanations, export, history, saved queries, feedback |
+| P6 | Evaluation: benchmark set, matcher, runner, metrics, ablations, compare, CI workflows |
+| P7 | Frontend: landing/demo, data, ask, history, metrics |
+| P8 | Auth, workspaces/membership, rate and cost limits, metrics endpoint, Sentry |
+| P9 | Deploy readiness: Dockerfiles, compose, README with results, architecture and evaluation docs |
+| P10 | Stretch: Postgres connections, few-shot from feedback, embeddings linking, OAuth, Playwright E2E |
 
 ---
 
 ## 15. Definition of done
 
-- Public URL works; the demo workspace answers questions with no signup.
-- Reported benchmark numbers in the README (custom + public subset), with ablation table and methodology.
-- Safety suite passes with every attack category covered.
-- CI is green: lint, types, tests, smoke benchmark; regression gate demonstrated on at least one PR.
-- README includes: one-line pitch, demo GIF, architecture diagram, quickstart (Docker), results table, design decisions and trade-offs, limitations, security notes, license.
-- `docs/` includes the evaluation methodology and decision log.
-- At least 20 real users (friends, classmates) have tried it, with feedback captured and a short note on what changed because of it.
+**Agent-completable:**
+- The CI workflows are green: lint, types, tests, safety suite, gold-SQL check and frontend build.
+- The safety suite covers every attack category in Section 9.4 and passes 100%.
+- The README has: a one-line pitch, an architecture diagram, a Docker and a non-Docker quickstart, a results table (filled in from a keyed run, or clearly marked as pending a keyed run), design decisions and trade-offs, limitations, security notes and the license.
+- `docs/` contains the evaluation methodology, the decision log and the architecture doc.
 - No secrets in the repo or its history.
 
----
-
-## 16. Risks and how to handle them
-
-- Scope creep: do not start M8 before M7 is done.
-- LLM cost: set caps, cache, route cheap vs. strong models.
-- Flaky accuracy numbers: fix seeds/temperature, run repeated trials, report confidence intervals.
-- Messy real-world data: invest early in the ingestion/profiling step; it drives accuracy more than prompt tweaks.
-- Security gaps: treat the SQL validator and isolation as the highest-priority code; fuzz-test it.
-- Benchmark leakage: never put benchmark questions in prompts or few-shot examples.
+**User-owned** (these need accounts, money or people):
+- A public URL, with a demo workspace that answers questions without signup.
+- Benchmark numbers produced with a real API key and committed to `eval_data/baseline.json` and the README.
+- A regression gate demonstrated on a real GitHub PR.
+- A demo GIF.
+- At least 20 real users, with their feedback captured and a short note on what changed because of it.
 
 ---
 
-## 17. First prompt to give the coding LLM
+## 16. Risks and mitigations
 
-"Read this spec fully. Start with Milestone M0. Propose the repo layout, the docker-compose file, the backend config and logging setup, the LLM client interface with a mock implementation, and a CI workflow. Explain any deviations from the spec before writing code. After finishing M0, summarize what was built, list tests added, and wait for my confirmation before starting M1."
+- **Scope creep:** P10 doesn't start until P9 is done.
+- **LLM cost:** daily caps, response caching, prompt caching, and routing between the strong and fast models.
+- **Flaky accuracy numbers:** a fixed dataset seed, N repeated runs, and reported confidence intervals. The regression threshold sits above the noise floor.
+- **Messy real-world data:** invest early in ingestion and profiling. They drive accuracy more than prompt tweaks do.
+- **Security gaps:** an allowlist validator plus a runtime sandbox, layered so each catches what the other misses. Fuzzing, and the safety suite in every CI run.
+- **Benchmark leakage:** benchmark questions never appear in prompts or few-shot pools, and a test asserts there is no overlap.
+- **Synthetic-data bias:** the demo data is synthetic, so accuracy on it may overstate accuracy on real data. The README says so, and the public-benchmark subset gives an external reference point.
+- **DuckDB file concurrency:** the executor opens files read-only, so readers don't block each other. Ingestion writes through a separate connection under a per-workspace lock.
+
+---
+
+## 17. Changelog from revision 1
+
+1. Section 0: replaced "ask before deviating / wait for confirmation" with "decide and log in `decisions.md`". Added the no-API-key-needed rule and phase tags.
+2. Section 2: chose the niche (personal finance/UPI) and made demo data a **seeded synthetic generator** with deliberate mess, so the benchmark is reproducible and license-clean.
+3. Section 4.4: rewrote safety for the real execution engine (DuckDB) as an **allowlist**. Added DuckDB runtime hardening and a watchdog timeout, and dropped the Postgres-only items (`pg_sleep`), which didn't apply.
+4. Section 4.3: merged the separate classification call into structured generation, added explicit `kind` outputs, set the retry limits, and defined model routing.
+5. Section 6/7: no Redis or pgvector in the default stack. SQLite (local) or Postgres (deploy) for the app DB, BM25 schema linking, and in-process limits behind swappable interfaces. This means it runs on a laptop with no Docker.
+6. Section 8: eval datasets are versioned files rather than DB rows. Added trace, error_category and truncation fields to `query_runs`.
+7. Section 9: precise **execution-match** definition, superset-column match, kind accuracy, bootstrap CIs, a leakage guard, and a mock-provider benchmark in every CI run, with the keyed benchmark gated on a secret.
+8. Section 10: eval runs start from the CLI rather than over HTTP. Added readiness, metrics and demo endpoints.
+9. Section 15: split the Definition of Done into agent-completable and user-owned items.
+10. Section 16: added risks for synthetic-data bias and DuckDB concurrency.
