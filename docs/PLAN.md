@@ -11,7 +11,7 @@ The status column is updated as phases land.
 | Phase | Name | Status |
 |---|---|---|
 | P0 | Spec revision, plan, repo bootstrap | done |
-| P1 | Backend foundation | pending |
+| P1 | Backend foundation | done |
 | P2 | Demo data and ingestion | pending |
 | P3 | SQL guard and sandboxed executor | pending |
 | P4 | Text-to-SQL pipeline and query API | pending |
