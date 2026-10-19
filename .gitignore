@@ -1,0 +1,39 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+*.egg-info/
+
+# data / runtime
+data/
+*.duckdb
+*.duckdb.wal
+*.sqlite
+*.sqlite3
+*.db
+uploads/
+eval_runs/
+
+# node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# os / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
