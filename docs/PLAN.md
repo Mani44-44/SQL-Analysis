@@ -19,7 +19,7 @@ The status column is updated as phases land.
 | P6 | Evaluation harness and CI eval | done |
 | P7 | Frontend | done |
 | P8 | Auth, limits, observability | done |
-| P9 | Deploy readiness and docs | pending |
+| P9 | Deploy readiness and docs | done |
 | P10 | Stretch | backlog |
 
 ---
@@ -143,7 +143,7 @@ The status column is updated as phases land.
 **Exit:** the gate is green and the commit is tagged `phase-8`.
 
 ## P9: Deploy readiness and docs
-- `backend/Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml` (backend, frontend, postgres) and `fly.toml` / `render.yaml` examples.
+- `backend/Dockerfile`, `frontend/Dockerfile`, `docker-compose.yml` (backend and frontend on SQLite, plus an opt-in Postgres override, D-021) and `deploy/fly.toml` / `deploy/render.yaml` examples.
 - README: the pitch, architecture diagram (mermaid), quickstarts, results table (from the mock wiring run and marked "pending a keyed run" until the user runs it), security model, limitations, and retention policy.
 - `docs/architecture.md` and `docs/evaluation.md`.
 - A final pass over everything: the security review checklist and a dependency audit.

@@ -1,0 +1,41 @@
+# Example Render Blueprint (copy to the repo root as render.yaml to use it).
+# Render's default filesystem is ephemeral: the disk below is required, and it needs a paid plan.
+services:
+  - type: web
+    name: askdata-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: starter
+    numInstances: 1 # in-process locks and limits (D-020)
+    healthCheckPath: /api/v1/health/ready
+    disk:
+      name: askdata-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: ENVIRONMENT
+        value: prod
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: none
+      - key: CORS_ORIGINS
+        value: '["https://askdata-web.onrender.com"]'
+      - key: TRUSTED_PROXY_HOPS
+        value: "1"
+
+  - type: web
+    name: askdata-web
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    plan: starter
+    envVars:
+      # Build-time for Next.js: the public API URL the browser calls.
+      - key: NEXT_PUBLIC_API_URL
+        value: https://askdata-api.onrender.com

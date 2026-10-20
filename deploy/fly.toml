@@ -1,0 +1,36 @@
+# Example Fly.io config for the API. Untested; adjust the app name and origins.
+# From the repo root (the Dockerfile copies eval_data/, so the root must be the build context):
+#   fly volumes create askdata_data --size 1 -c deploy/fly.toml
+#   fly secrets set JWT_SECRET=... ANTHROPIC_API_KEY=... -c deploy/fly.toml
+#   fly deploy . -c deploy/fly.toml --dockerfile backend/Dockerfile
+app = "askdata-api"
+primary_region = "bom"
+
+[env]
+  ENVIRONMENT = "prod"
+  # The web UI is served from another site, so the session cookie must be SameSite=None; Secure.
+  COOKIE_SECURE = "true"
+  COOKIE_SAMESITE = "none"
+  CORS_ORIGINS = '["https://askdata-web.fly.dev"]'
+  # Fly's proxy appends the client address to X-Forwarded-For.
+  TRUSTED_PROXY_HOPS = "1"
+
+[[mounts]]
+  source = "askdata_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  # Exactly one machine: locks, rate limits and cost caps are in-process (D-020).
+  min_machines_running = 0
+  max_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = "60s"
+    interval = "30s"
+    method = "GET"
+    path = "/api/v1/health/ready"
+    timeout = "5s"

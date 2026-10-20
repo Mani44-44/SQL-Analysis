@@ -20,6 +20,7 @@ dependencies = [
     "pyjwt>=2.9",
     "sse-starlette>=2.1",
     "pytz>=2026.5",
+    "psycopg[binary]>=3.2",
 ]
 
 [dependency-groups]

@@ -103,11 +103,14 @@ class Caller:
 
 
 def client_ip(request: Request) -> str:
-    # Behind a proxy, the platform sets X-Forwarded-For; take the first hop.
-    fwd = request.headers.get("x-forwarded-for", "")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    peer = request.client.host if request.client else "unknown"
+    hops = get_settings().trusted_proxy_hops
+    if hops <= 0:
+        return peer
+    # Each trusted proxy appends the address it saw, so the client is `hops` entries from the
+    # right. Anything further left was supplied by the client and can't be trusted.
+    parts = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",") if p.strip()]
+    return parts[-hops] if len(parts) >= hops else peer
 
 
 def get_caller(request: Request, user: User | None = Depends(get_current_user)) -> Caller:

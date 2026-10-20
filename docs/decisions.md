@@ -123,6 +123,18 @@ Each entry has three parts: context, decision, and trade-off. New entries go at 
   - Objects addressed by their own id (sources, columns, runs, conversations, saved queries) are checked through their workspace.
   - A missing or forbidden workspace returns 404, so ids can't be probed. It returns 401 when nobody is signed in, so the UI can send them to sign in.
 - **Demo privacy:** demo conversations and runs belong to whoever asked them. Signed-in users see only their own, and anonymous history isn't listed at all. Another user can't continue someone else's conversation.
-- **Limits:** a sliding-window rate limiter (30/min) and a daily LLM cost cap ($1.00 per UTC day), keyed by user id or, for anonymous callers, by client IP (first `X-Forwarded-For` hop). Login has its own limit of 10 attempts per minute per email, which slows password guessing against one account. Both are in-process behind small classes. That is correct for one instance, but several replicas need a shared store such as Redis.
+- **Limits:** a sliding-window rate limiter (30/min) and a daily LLM cost cap ($1.00 per UTC day), keyed by user id or, for anonymous callers, by client IP. `X-Forwarded-For` is ignored unless `TRUSTED_PROXY_HOPS` > 0, and then the entry the trusted proxy appended is used (counted from the right). Otherwise anyone could pick a fresh bucket by sending a fake header. Login has its own limit of 10 attempts per minute per email, which slows password guessing against one account. Both are in-process behind small classes. That is correct for one instance, but several replicas need a shared store such as Redis.
 - **Known gap:** the executor's audit log line has no user id. Attribution lives in `query_runs.user_id`, which the API sets for both ask and run.
 - **Trade-off:** IP-keyed limits are easy to share by accident (NAT) and easy to dodge (rotating IPs). The cost cap is the real guard against a runaway bill, so keep the provider-side spend limit configured as well.
+
+## D-021: Deployment defaults to SQLite on a volume; Postgres is opt-in
+- **Context:** the plan called for Postgres in compose. The app is single-instance by construction: DuckDB files sit on local disk, and locks, limits and the answer cache are in-process (D-020). Postgres would add a path that has never run without buying anything operationally yet.
+- **Decision:**
+  - `docker-compose.yml` runs the API and UI with SQLite and the DuckDB files on one named volume.
+  - `docker-compose.postgres.yml` is an opt-in override. The `psycopg` driver is installed, and `alembic upgrade head --sql` renders the migration for Postgres without errors. The session code applies SQLite-only connection arguments and pragmas only to SQLite, and the app's own queries avoid dialect-specific functions. The Postgres runtime itself hasn't been tested.
+  - Images:
+    - The API runs as a non-root user with **one uvicorn worker**. It seeds the demo on start, which is idempotent: an existing demo workspace is kept.
+    - Uvicorn's proxy-header rewriting is off, so `TRUSTED_PROXY_HOPS` is the only thing deciding the client IP.
+    - The UI uses Next.js `output: "standalone"`, and `NEXT_PUBLIC_API_URL` is a build argument because it is inlined into the browser bundle.
+  - The Fly.io and Render examples pin one machine, mount a persistent disk at `/data`, and set `COOKIE_SAMESITE=none`, `COOKIE_SECURE=true` and `TRUSTED_PROXY_HOPS=1`, because the UI and API are on different sites there.
+- **Trade-off:** horizontal scaling waits for Redis-backed limits and shared storage. Until then, scale up rather than out.

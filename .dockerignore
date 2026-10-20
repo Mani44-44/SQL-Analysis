@@ -1,0 +1,15 @@
+# Context for backend/Dockerfile (built from the repo root).
+**/.env
+**/.env.*
+!.env.example
+**/data
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.hypothesis
+**/node_modules
+**/.next
+.git
+eval_runs

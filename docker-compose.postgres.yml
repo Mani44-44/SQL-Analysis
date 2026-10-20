@@ -1,0 +1,26 @@
+# Opt-in override: keep the app database (users, history, eval runs) in Postgres.
+# Uploaded data stays in per-workspace DuckDB files on the backend volume either way.
+# The migration renders cleanly for Postgres (alembic --sql) but this stack hasn't been run end to end.
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: askdata
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-askdata}
+      POSTGRES_DB: askdata
+    volumes:
+      - askdata-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U askdata"]
+      interval: 5s
+      retries: 10
+
+  backend:
+    environment:
+      DATABASE_URL: postgresql+psycopg://askdata:${POSTGRES_PASSWORD:-askdata}@postgres:5432/askdata
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  askdata-pg:

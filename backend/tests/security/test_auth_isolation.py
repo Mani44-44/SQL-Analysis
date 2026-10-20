@@ -271,3 +271,41 @@ def test_prod_requires_jwt_secret(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JWT_SECRET", "a-real-secret-value-for-tests-0123456789abcdef")
     get_settings.cache_clear()
     create_app()
+
+
+def test_spoofed_forwarded_for_does_not_reset_limits(
+    client: TestClient, demo_ws: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "rate_limit_per_min", 2)
+    codes = [
+        client.post(
+            f"{API}/workspaces/{demo_ws}/sql/run",
+            json={"sql": "SELECT 1"},
+            headers={"X-Forwarded-For": f"10.0.0.{i}"},
+        ).status_code
+        for i in range(4)
+    ]
+    assert codes[2] == 429
+
+
+def test_trusted_proxy_hop_selects_proxy_appended_address(monkeypatch: pytest.MonkeyPatch) -> None:
+    from starlette.requests import Request
+
+    from app.api.deps import client_ip
+    from app.core.config import get_settings
+
+    def req(xff: str) -> Request:
+        return Request(
+            {
+                "type": "http",
+                "headers": [(b"x-forwarded-for", xff.encode())],
+                "client": ("192.0.2.1", 1234),
+            }
+        )
+
+    assert client_ip(req("6.6.6.6, 203.0.113.9")) == "192.0.2.1"
+    monkeypatch.setattr(get_settings(), "trusted_proxy_hops", 1)
+    assert client_ip(req("6.6.6.6, 203.0.113.9")) == "203.0.113.9"
+    assert client_ip(req("")) == "192.0.2.1"

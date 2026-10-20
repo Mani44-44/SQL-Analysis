@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     # --- limits ---
     rate_limit_per_min: int = 30
     daily_cost_cap_usd: float = 1.0
+    # Reverse proxies in front of the API that append to X-Forwarded-For. 0 = ignore the header
+    # (otherwise any client could pick its own rate-limit bucket by sending a fake one).
+    trusted_proxy_hops: int = Field(default=0, ge=0)
 
     # --- observability ---
     sentry_dsn: str | None = None

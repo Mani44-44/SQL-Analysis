@@ -1,0 +1,42 @@
+# Local production-like stack: API + web UI, with SQLite and DuckDB files on a named volume.
+#   JWT_SECRET=$(python -c "import secrets; print(secrets.token_urlsafe(48))") docker compose up --build
+# Postgres for the app database (opt-in, runtime untested):
+#   docker compose -f docker-compose.yml -f docker-compose.postgres.yml up --build
+# Open http://localhost:3000. Without ANTHROPIC_API_KEY the API runs the deterministic mock model.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      ENVIRONMENT: prod
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET to at least 32 random characters}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      # localhost:3000 -> localhost:8000 is same-site, so lax cookies over plain http work here.
+      COOKIE_SECURE: "false"
+      COOKIE_SAMESITE: lax
+      DAILY_COST_CAP_USD: ${DAILY_COST_CAP_USD:-1.0}
+    volumes:
+      - askdata-data:/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the browser bundle: the address the browser uses, not the compose hostname.
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  askdata-data:
