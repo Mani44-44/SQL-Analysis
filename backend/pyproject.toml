@@ -46,6 +46,9 @@ ignore = ["S101", "RUF001", "RUF002", "RUF003", "B008"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "B"]
 "app/db/alembic/**" = ["E501"]
+"app/demo/**" = ["E501", "S311"]
+# identifiers are always quoted via quote_ident(); values never interpolated
+"app/services/ingestion/loader.py" = ["S608"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -66,3 +66,11 @@ def client() -> Iterator[TestClient]:
 
     with TestClient(create_app()) as c:
         yield c
+
+
+@pytest.fixture
+def demo_ws(db: Session) -> str:
+    """Seeded demo workspace id (ingested from the deterministic generator)."""
+    from app.demo.seed import seed_demo
+
+    return seed_demo(db).id

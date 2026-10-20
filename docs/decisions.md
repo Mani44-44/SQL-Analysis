@@ -41,3 +41,18 @@ Each entry has three parts: context, decision, and trade-off. New entries go at 
 - **Context:** Revision 1 had a separate "understand/classify" LLM call before generation.
 - **Decision:** One structured generation call returns `kind` (sql, clarify, or unanswerable), the SQL, assumptions, and a confidence score.
 - **Trade-off:** There's less modularity, but each question saves one round trip, roughly 30–40% of latency on simple questions.
+
+## D-009: Demo dataset size (~1.1k transactions over 18 months)
+- **Context:** Revision 2 of the plan estimated about 5k transactions. A realistic simulation of one person's finances, with salary, rent, around 60 discretionary transactions a month, refunds, and failed or pending payments, comes to roughly 1,100 rows over Jan 2025 to Jun 2026.
+- **Decision:** Keep the realistic volume. Benchmark difficulty comes from date logic, joins, status filtering, and messy formats, not from the row count.
+- **Trade-off:** This doesn't stress performance. The row-cap, timeout, and memory-limit paths are covered separately by safety tests that use synthetic large tables.
+
+## D-010: Type inference rules
+- **Context:** Messy uploads mix formats. Being wrong in either direction hurts: if amounts end up as text, aggregation breaks, and if IDs end up as numbers, leading zeros are lost.
+- **Decision:** Numeric and boolean types require every non-null value to parse. Values with leading zeros stay text. Dates need at least 95% of values to parse, and the remainder becomes NULL and is counted. For slash dates, day-first is the default unless the column proves month-first (some second component is greater than 12 and no first component is). Currency is detected from ₹, Rs., INR, $, or a Dr/Cr suffix, and Dr makes the value negative. Percentages are stored as the number shown, so 12.5% is stored as 12.5.
+- **Trade-off:** One stray value turns a numeric column into text. The user can override the type, which reloads the table with the unparseable values set to NULL.
+
+## D-011: Per-workspace readers-writer lock around DuckDB files
+- **Context:** DuckDB won't open the same file twice in one process with different configurations, and the read-only sandbox and the ingestion writer use different configurations.
+- **Decision:** Each workspace gets an in-process, writer-preferring RW lock. Ingestion takes the write side and the executor takes the read side.
+- **Trade-off:** This only works in a single process. Running multiple workers would need a file lock or a separate ingestion service. That's documented as a deployment constraint: one backend instance per volume.
