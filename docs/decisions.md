@@ -70,3 +70,23 @@ Each entry has three parts: context, decision, and trade-off. New entries go at 
   - `tests/security/test_roundtrip.py` checks D-012 directly. About 160 allowlisted expressions are run both raw and regenerated, and their values and types must match.
   - `tests/unit/test_concurrency.py` interleaves sandboxed reads with re-ingestion on the same file.
   - `pytz` was added because fetching TIMESTAMPTZ values failed without it.
+
+## D-014: Follow-up resolution folded into generation; calls are single-turn
+- **Context:** Revision 2 had a separate context-resolution stage that rewrote follow-ups into standalone questions. That would cost an extra LLM call on every follow-up.
+- **Decision:**
+  - The last N turns go into a delimited `<history>` block in the user message, as question plus final SQL. The generation output includes `standalone_question`, which is stored as `resolved_question` and reused as history.
+  - Each call is a single user turn. Earlier assistant turns are never replayed, so there are no thinking-block or history-editing constraints.
+  - The system prompt holds the static instructions, the schema and the glossary, so it stays cacheable per workspace.
+- **Trade-off:** The generation prompt does slightly more work. In return, each question costs one model call instead of two.
+
+## D-015: Self-correction policy
+- **Decision:**
+  - Validation and execution errors are retried with the error fed back, up to `max_corrections` times (default 2).
+  - Timeout, memory and no-data errors are not retried, because another attempt won't fix them.
+  - An empty or all-NULL result gets one "check your filters" retry. If the model returns the same SQL, the empty result stands.
+  - Every attempt's SQL and error is kept for evaluation, including first-attempt accuracy and recovery rate.
+- **Trade-off:** In the worst case a question takes four model calls. Cost caps (P8) bound the spend.
+
+## D-016: sqlglot models boolean operators as functions
+- **Finding:** In sqlglot 30, `exp.And`, `exp.Or` and `exp.Xor` subclass `exp.Func`. The function allowlist was rejecting every query that used `AND`.
+- **Decision:** Add the operator classes to the allowlist. Allowed-query tests now cover `AND`, `OR` and `NOT` in WHERE, FILTER, JOIN ON and CASE, plus every demo question.

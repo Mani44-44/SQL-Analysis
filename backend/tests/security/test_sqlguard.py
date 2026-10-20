@@ -51,7 +51,21 @@ ALLOWED = [
     "SELECT lower(description) LIKE '%swiggy%' AS is_swiggy FROM transactions",
     "SELECT date_diff('day', min(txn_date), max(txn_date)) FROM transactions",
     "SELECT * FROM transactions ORDER BY amount DESC LIMIT 10 OFFSET 5",
+    "SELECT * FROM transactions WHERE type = 'Debit' AND status = 'Success' AND amount > 10",
+    "SELECT * FROM transactions WHERE (type = 'Debit' OR type = 'Credit') AND NOT amount < 0",
+    "SELECT * FROM transactions WHERE status <> 'Failed' AND notes IS NOT NULL OR amount >= 5000",
+    "SELECT * FROM transactions WHERE description ~ 'UPI' AND description !~ 'ATM'",
+    "SELECT count(*) FILTER (WHERE type = 'Debit' AND status = 'Success') FROM transactions",
+    "SELECT * FROM transactions t JOIN accounts a ON t.account_id = a.account_id AND a.active",
+    "SELECT CASE WHEN amount > 1 AND amount < 5 THEN 1 END FROM transactions",
 ]
+
+
+def test_demo_questions_validate() -> None:
+    from app.demo.questions import DEMO_QUESTIONS
+
+    for q in DEMO_QUESTIONS:
+        validate_sql(q.sql, STATIC_SCHEMA)
 
 
 @pytest.mark.parametrize("sql", ALLOWED)

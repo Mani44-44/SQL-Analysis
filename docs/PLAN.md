@@ -14,7 +14,7 @@ The status column is updated as phases land.
 | P1 | Backend foundation | done |
 | P2 | Demo data and ingestion | done |
 | P3 | SQL guard and sandboxed executor | done |
-| P4 | Text-to-SQL pipeline and query API | pending |
+| P4 | Text-to-SQL pipeline and query API | done |
 | P5 | Charts, explanations, history, feedback, export | pending |
 | P6 | Evaluation harness and CI eval | pending |
 | P7 | Frontend | pending |

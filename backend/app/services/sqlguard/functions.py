@@ -44,6 +44,9 @@ ALLOWED_FUNC_CLASSES: frozenset[str] = frozenset(
         "TimestampSub", "CurrentDate", "CurrentTimestamp", "CurrentTime", "DateFromParts",
         "TimestampFromParts", "LastDay", "Date", "UnixToTime", "DateBin", "DateStrToDate",
         "TsOrDsToDate", "TsOrDsAdd", "MakeInterval", "Timestamp", "ToDays",
+        # boolean / comparison operators that sqlglot models as Func subclasses
+        "And", "Or", "Xor", "Collate", "RegexpFullMatch", "ArrayContainsAll", "ArrayOverlaps",
+        "ArrayPosition",
         # conditional / casting / structure
         "Case", "If", "Cast", "TryCast", "Coalesce", "Nullif", "Exists", "Typeof", "Array",
         "Struct", "Columns", "ArrayContains", "ArraySize", "Transform", "ArrayFilter",
