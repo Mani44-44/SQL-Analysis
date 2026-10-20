@@ -136,5 +136,8 @@ Each entry has three parts: context, decision, and trade-off. New entries go at 
     - The API runs as a non-root user with **one uvicorn worker**. It seeds the demo on start, which is idempotent: an existing demo workspace is kept.
     - Uvicorn's proxy-header rewriting is off, so `TRUSTED_PROXY_HOPS` is the only thing deciding the client IP.
     - The UI uses Next.js `output: "standalone"`, and `NEXT_PUBLIC_API_URL` is a build argument because it is inlined into the browser bundle.
-  - The Fly.io and Render examples pin one machine, mount a persistent disk at `/data`, and set `COOKIE_SAMESITE=none`, `COOKIE_SECURE=true` and `TRUSTED_PROXY_HOPS=1`, because the UI and API are on different sites there.
+  - The Fly.io and Render examples pin one machine, mount a persistent disk at `/data`, and set `TRUSTED_PROXY_HOPS=1`.
+  - Platform volumes are often mounted root-owned. The entrypoint starts as root, chowns `DATA_DIR`, then drops to uid 10001 with `setpriv` before seeding and serving.
+  - Cookies across sites: `*.fly.dev` and `*.onrender.com` are public suffixes, so a UI and API on two such subdomains are different sites. They need `SameSite=None; Secure`, which Safari blocks by default. The recommended setup is a custom domain with the UI and API under one registrable domain and `SameSite=lax`. The examples ship the `none` settings only as a fallback.
+  - A CI `docker` job builds both images, starts the compose stack, and checks the health endpoints and a demo question.
 - **Trade-off:** horizontal scaling waits for Redis-backed limits and shared storage. Until then, scale up rather than out.

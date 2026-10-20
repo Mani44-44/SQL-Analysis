@@ -18,9 +18,11 @@ COPY backend/ ./
 # The benchmark and few-shot pool are read at runtime by the eval endpoints and CLI.
 COPY eval_data/ /srv/eval_data/
 
-RUN useradd --system --uid 10001 --home /srv askdata \
-    && mkdir -p /data && chown askdata /data
-USER askdata
+RUN groupadd --system --gid 10001 askdata \
+    && useradd --system --uid 10001 --gid 10001 --home /srv askdata \
+    && mkdir -p /data && chown askdata:askdata /data \
+    && chmod +x /srv/backend/docker-entrypoint.sh
+# No USER line: the entrypoint starts as root only to fix volume ownership, then drops to 10001.
 
 ENV PATH="/srv/backend/.venv/bin:$PATH" \
     ENVIRONMENT=prod \
@@ -34,5 +36,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \
 
 # One worker on purpose: workspace locks, the rate limiter and the cost tracker are in-process
 # (docs/decisions.md D-020). Scale by running a bigger machine, not more workers.
-# The seed step runs migrations and only creates the demo workspace if it's missing.
-CMD ["sh", "-c", "python -m app.demo.seed && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --no-proxy-headers"]
+# The entrypoint seeds first: migrations run, and the demo workspace is created only if missing.
+ENTRYPOINT ["/srv/backend/docker-entrypoint.sh"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-proxy-headers"]

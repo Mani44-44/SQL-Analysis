@@ -3,12 +3,16 @@
 #   fly volumes create askdata_data --size 1 -c deploy/fly.toml
 #   fly secrets set JWT_SECRET=... ANTHROPIC_API_KEY=... -c deploy/fly.toml
 #   fly deploy . -c deploy/fly.toml --dockerfile backend/Dockerfile
+#   fly scale count 1 -c deploy/fly.toml      # exactly one machine: in-process locks and limits (D-020)
+# Cookies: *.fly.dev is a public suffix, so a UI on another fly.dev app is cross-site and needs
+# SameSite=None (blocked by Safari's default third-party cookie rules). Prefer a custom domain
+# with the UI and API under one registrable domain (app.example.com + api.example.com) and lax.
 app = "askdata-api"
 primary_region = "bom"
 
 [env]
   ENVIRONMENT = "prod"
-  # The web UI is served from another site, so the session cookie must be SameSite=None; Secure.
+  # Fallback for a UI on another *.fly.dev app (cross-site). With a shared custom domain use "lax".
   COOKIE_SECURE = "true"
   COOKIE_SAMESITE = "none"
   CORS_ORIGINS = '["https://askdata-web.fly.dev"]'
@@ -24,9 +28,7 @@ primary_region = "bom"
   force_https = true
   auto_stop_machines = "stop"
   auto_start_machines = true
-  # Exactly one machine: locks, rate limits and cost caps are in-process (D-020).
   min_machines_running = 0
-  max_machines_running = 1
 
   [[http_service.checks]]
     grace_period = "60s"

@@ -76,3 +76,30 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: docker compose build
+      - name: Start the stack
+        run: JWT_SECRET="$(openssl rand -base64 48)" docker compose up -d
+      - name: Smoke test
+        run: |
+          for i in $(seq 1 60); do
+            curl -fs localhost:8000/api/v1/health/ready && curl -fs -o /dev/null localhost:3000/ && exit 0
+            sleep 2
+          done
+          exit 1
+      - name: Demo answers a question
+        run: |
+          ws=$(curl -fs localhost:8000/api/v1/workspaces | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['id'])")
+          curl -fs -X POST "localhost:8000/api/v1/workspaces/$ws/ask" -H 'Content-Type: application/json' \
+            -d '{"question": "How much did I spend each month?"}' | python3 -c "import json,sys; r=json.load(sys.stdin); assert r['status']=='ok', r"
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

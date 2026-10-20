@@ -103,6 +103,6 @@ The safety suite (`backend/tests/security/`) runs in every CI build. It covers i
 | Shape | App DB | Files | Status |
 |---|---|---|---|
 | Local dev (`uv` + `npm`) | SQLite in `./data` | `./data` | Used throughout development |
-| `docker compose up` | SQLite on a named volume | Same volume | Written, not run here (no Docker on the dev machine) |
+| `docker compose up` | SQLite on a named volume | Same volume | Not run locally (no Docker); the CI `docker` job builds it and smoke-tests it |
 | `+ docker-compose.postgres.yml` | Postgres 17 | Backend volume | Migration renders for Postgres; runtime untested |
 | Fly.io / Render (`deploy/`) | SQLite on a mounted disk | Same disk | Examples; cross-site cookies (`SameSite=None; Secure`) |

@@ -2,7 +2,8 @@
 **/.env
 **/.env.*
 !.env.example
-**/data
+/data
+backend/data
 **/.venv
 **/__pycache__
 **/.pytest_cache

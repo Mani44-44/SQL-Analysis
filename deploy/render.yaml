@@ -1,5 +1,8 @@
 # Example Render Blueprint (copy to the repo root as render.yaml to use it).
 # Render's default filesystem is ephemeral: the disk below is required, and it needs a paid plan.
+# Cookies: *.onrender.com is a public suffix, so the two services below are cross-site and need
+# SameSite=None, which Safari blocks by default. Prefer custom domains under one registrable
+# domain (app.example.com + api.example.com) with COOKIE_SAMESITE=lax.
 services:
   - type: web
     name: askdata-api
