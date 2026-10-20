@@ -148,7 +148,7 @@ class Text2SQLPipeline:
             question,
             schema,
             threshold_columns=self.settings.schema_link_threshold,
-            force=False,
+            force=config.force_linking and config.use_linking,
         )
         tables = link.tables if config.use_linking else [t.name for t in schema.tables]
         # Small glossaries go in whole (term matching misses inflections like spend/spent).
@@ -174,6 +174,7 @@ class Text2SQLPipeline:
             tables=tables if config.use_linking and not link.skipped else None,
             glossary=glossary,
             include_samples=config.use_samples,
+            examples=config.few_shot,
         )
         result.prompt_version = prompt_tag
 

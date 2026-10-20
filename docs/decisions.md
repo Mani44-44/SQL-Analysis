@@ -90,3 +90,18 @@ Each entry has three parts: context, decision, and trade-off. New entries go at 
 ## D-016: sqlglot models boolean operators as functions
 - **Finding:** In sqlglot 30, `exp.And`, `exp.Or` and `exp.Xor` subclass `exp.Func`. The function allowlist was rejecting every query that used `AND`.
 - **Decision:** Add the operator classes to the allowlist. Allowed-query tests now cover `AND`, `OR` and `NOT` in WHERE, FILTER, JOIN ON and CASE, plus every demo question.
+
+## D-017: How the benchmark is scored
+- **Decision:**
+  - Execution match ignores column order and names, but the row-level pairing must still hold.
+  - Rows are compared as a multiset unless the gold SQL has a top-level ORDER BY.
+  - Numbers are rounded money-style. Temporal values are canonicalised, so a midnight timestamp matches its date and a `YYYY-MM` label matches the first of the month.
+  - Strict and superset (extra predicted columns) matches are reported separately.
+  - The headline accuracy counts SQL cases by strict execution match and clarify/unanswerable cases by kind match.
+- **Trade-off:** Matching a `YYYY-MM` label to the first of the month accepts both `strftime` and `date_trunc` answers to "per month" questions. That is lenient but defensible. Rounding at two decimals could in theory hide a difference of less than one paisa.
+
+## D-018: Eval uses the demo workspace; the oracle provider checks the harness
+- **Decision:**
+  - The runner seeds the demo workspace if it's missing (`--reseed` forces a rebuild), then persists `eval_runs` and `eval_results` to the app DB so the metrics page can show history.
+  - A deterministic oracle provider fails on purpose in fixed patterns, so the expected metrics are exact and CI can check the whole harness without a key.
+- **Trade-off:** Re-seeding resets the demo's conversation history. CI always starts from an empty DB.

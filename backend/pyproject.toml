@@ -48,6 +48,8 @@ ignore = ["S101", "RUF001", "RUF002", "RUF003", "B008"]
 "tests/**" = ["S", "B", "E501"]
 "app/db/alembic/**" = ["E501"]
 "app/demo/**" = ["E501", "S311"]
+# report tables / ablation ladders; seeded bootstrap RNG is not crypto
+"app/eval/**" = ["E501", "S311"]
 # identifiers are always quoted via quote_ident(); values never interpolated
 "app/services/ingestion/loader.py" = ["S608"]
 

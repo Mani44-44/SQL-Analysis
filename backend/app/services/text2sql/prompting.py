@@ -26,12 +26,16 @@ def build_system_prompt(
     tables: list[str] | None,
     glossary: list[GlossaryCard],
     include_samples: bool,
+    examples: list[tuple[str, str]] | None = None,
 ) -> tuple[str, str]:
     prompt = load_prompt("generate_sql")
     schema_text = render_schema(schema, include_samples=include_samples, tables=tables)
     block = f"<schema>\n{_escape(schema_text)[:_MAX_DATA_CHARS]}\n</schema>"
     if glossary:
         block += f"\n\n<glossary>\n{_escape(render_glossary(glossary))}\n</glossary>"
+    if examples:
+        shots = "\n\n".join(f"Q: {_escape(q)}\nSQL: {_escape(s)}" for q, s in examples)
+        block += f"\n\n<examples>\nWorked examples on this schema:\n\n{shots}\n</examples>"
     return prompt.render(schema_block=block), prompt.tag
 
 

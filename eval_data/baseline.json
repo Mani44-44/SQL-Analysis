@@ -1,0 +1,4 @@
+{
+  "status": "pending",
+  "note": "Set by running `python -m app.eval.run --smoke --baseline ../eval_data/baseline.json --update-baseline` (and again without --smoke) with ANTHROPIC_API_KEY configured. The regression gate is skipped while status is 'pending'."
+}

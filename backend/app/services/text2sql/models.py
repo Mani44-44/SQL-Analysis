@@ -47,11 +47,14 @@ class PipelineConfig:
     explain: bool = True
     max_corrections: int = 2
     row_cap: int | None = None
+    force_linking: bool = False  # link even when the schema is under the size threshold
+    few_shot: list[tuple[str, str]] = field(default_factory=list)  # (question, sql) examples
 
     def key(self) -> str:
         return (
             f"s{int(self.use_samples)}l{int(self.use_linking)}g{int(self.use_glossary)}"
             f"c{int(self.self_correction)}e{int(self.explain)}m{self.max_corrections}"
+            f"f{int(self.force_linking)}x{len(self.few_shot)}"
         )
 
 

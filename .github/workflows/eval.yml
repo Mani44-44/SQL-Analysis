@@ -1,0 +1,81 @@
+name: Benchmark
+
+# Real-model benchmark. Runs only when the ANTHROPIC_API_KEY secret is configured.
+#  - pull requests: smoke subset, PR comment with scores, regression gate vs eval_data/baseline.json
+#  - nightly / manual: full benchmark with repeats
+
+on:
+  pull_request:
+    paths:
+      - "backend/app/**"
+      - "eval_data/**"
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+    inputs:
+      configs:
+        description: "Comma-separated configs (e.g. full or an ablation ladder)"
+        default: "full"
+      repeats:
+        description: "Repeats per case"
+        default: "3"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      LLM_PROVIDER: anthropic
+      DATA_DIR: ${{ github.workspace }}/.eval-data
+      DATABASE_URL: sqlite:///${{ github.workspace }}/.eval-data/app.sqlite
+    steps:
+      - name: Skip without API key
+        if: env.ANTHROPIC_API_KEY == ''
+        run: echo "::notice::ANTHROPIC_API_KEY secret not set; skipping the real-model benchmark."
+      - uses: actions/checkout@v4
+        if: env.ANTHROPIC_API_KEY != ''
+      - uses: astral-sh/setup-uv@v3
+        if: env.ANTHROPIC_API_KEY != ''
+        with:
+          enable-cache: true
+      - name: Install
+        if: env.ANTHROPIC_API_KEY != ''
+        run: uv sync --frozen
+      - name: Smoke benchmark + regression gate (PR)
+        id: smoke
+        if: env.ANTHROPIC_API_KEY != '' && github.event_name == 'pull_request'
+        run: |
+          set -o pipefail
+          uv run python -m app.eval.run --smoke --repeats 2 --provider anthropic \
+            --baseline ../eval_data/baseline.json --threshold 5 --out ../eval_runs | tee ../eval_runs_stdout.md
+      - name: Full benchmark (nightly / manual)
+        if: env.ANTHROPIC_API_KEY != '' && github.event_name != 'pull_request'
+        run: |
+          uv run python -m app.eval.run --provider anthropic \
+            --configs "${{ github.event.inputs.configs || 'full' }}" \
+            --repeats "${{ github.event.inputs.repeats || '3' }}" \
+            --baseline ../eval_data/baseline.json --out ../eval_runs
+      - name: Comment scores on PR
+        if: always() && env.ANTHROPIC_API_KEY != '' && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const dir = 'eval_runs';
+            if (!fs.existsSync(dir)) return;
+            const md = fs.readdirSync(dir).filter(f => f.endsWith('.md')).sort().pop();
+            if (!md) return;
+            const body = `### 🧪 AskData smoke benchmark\n\n${fs.readFileSync(`${dir}/${md}`, 'utf8')}\n\n_Regression gate: fails if accuracy drops more than 5 points below \`eval_data/baseline.json\`._`;
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+      - uses: actions/upload-artifact@v4
+        if: always() && env.ANTHROPIC_API_KEY != ''
+        with:
+          name: eval-runs
+          path: eval_runs/

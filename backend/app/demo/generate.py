@@ -656,11 +656,15 @@ def generate(out_dir: Path, seed: int = DEFAULT_SEED) -> dict[str, Path]:
 DEMO_GLOSSARY: list[tuple[str, str]] = [
     (
         "spend",
-        "Money going out: SUM(transactions.amount) WHERE transactions.type = 'Debit' AND transactions.status = 'Success'. Exclude the 'Transfers' and 'Investments' category groups unless asked.",
+        "Money going out: SUM(transactions.amount) over successful debits (type = 'Debit' AND status = 'Success'), "
+        "excluding transactions whose merchant's category is in category_group 'Transfers' or 'Savings' "
+        "(card bill payments, wallet top-ups, investments). Transactions with no merchant (ATM cash withdrawals) DO count as spend: "
+        "LEFT JOIN merchants and categories and use coalesce(category_group, '') NOT IN ('Transfers', 'Savings').",
     ),
     (
         "income",
-        "Money coming in from salary or interest: transactions.type = 'Credit' AND status = 'Success' in category 'Salary', or with no merchant and payment_mode = 'Interest'.",
+        "Money coming in: successful credits (type = 'Credit' AND status = 'Success') whose merchant category is 'Salary', "
+        "plus interest credits (payment_mode = 'Interest'). Refunds and transfers are not income.",
     ),
     (
         "successful transaction",

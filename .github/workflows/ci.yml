@@ -17,7 +17,8 @@ jobs:
         working-directory: backend
     env:
       LLM_PROVIDER: mock
-      ENVIRONMENT: test
+      DATA_DIR: ${{ github.workspace }}/.ci-data
+      DATABASE_URL: sqlite:///${{ github.workspace }}/.ci-data/app.sqlite
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
@@ -31,10 +32,16 @@ jobs:
           uv run ruff format --check .
       - name: Type check
         run: uv run mypy app
-      - name: Tests (unit, api, security)
+      - name: Tests (unit, api, security, eval)
         run: uv run pytest -q
+        env:
+          ENVIRONMENT: test
+      - name: Gold SQL check (runs + sqlglot round-trip stable)
+        run: uv run python -m app.eval.run --check-gold
+      - name: Benchmark harness wiring (deterministic oracle, no API key)
+        run: uv run python -m app.eval.run --provider oracle --no-db --out ../eval_runs
       - name: Dependency audit
-        run: uvx pip-audit --strict --progress-spinner off -r <(uv export --no-hashes --no-dev --format requirements-txt) || echo "::warning::pip-audit reported issues"
+        run: uvx pip-audit --progress-spinner off -r <(uv export --no-hashes --no-dev --format requirements-txt) || echo "::warning::pip-audit reported issues"
 
   secrets:
     runs-on: ubuntu-latest
