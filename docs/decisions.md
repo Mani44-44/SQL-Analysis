@@ -56,3 +56,12 @@ Each entry has three parts: context, decision, and trade-off. New entries go at 
 - **Context:** DuckDB won't open the same file twice in one process with different configurations, and the read-only sandbox and the ingestion writer use different configurations.
 - **Decision:** Each workspace gets an in-process, writer-preferring RW lock. Ingestion takes the write side and the executor takes the read side.
 - **Trade-off:** This only works in a single process. Running multiple workers would need a file lock or a separate ingestion service. That's documented as a deployment constraint: one backend instance per volume.
+
+## D-012: Execute the SQL regenerated from the validated AST
+- **Context:** If the validator's parser (sqlglot) and DuckDB's parser disagree about a string, through comment nesting, quoting, or dialect quirks, an attacker could hide something that sqlglot reads as harmless and DuckDB reads as an attack.
+- **Decision:** After validation, generate the SQL from the checked sqlglot AST with comments stripped, and execute that string. The original string never reaches DuckDB.
+- **Trade-off:** sqlglot normalises some functions when it regenerates SQL. For example, `ifnull` becomes `COALESCE` and `range(3)` becomes `RANGE(0, 3)`. The benchmark's gold SQL runs through the same round trip, so any semantic drift shows up there.
+
+## D-013: Order of the validation checks
+- **Decision:** Checks run in this order: parse into a single statement, size limits, root type, forbidden nodes anywhere in the tree, tables (table functions, qualifiers, CTE scope, allowlist), functions, columns, cross joins. Checking tables before functions gives table functions such as `read_csv(...)` a clear `table_function` error. Column checks come late because they exist for the self-correction loop's error messages and are not a security boundary.
+- **Runtime finding:** With `enable_external_access=false`, DuckDB still lets a connection read its own open database file by path. That exposes only the workspace's own data. Reading another workspace's file through `FROM 'path'`, `read_csv`, `read_text`, or `ATTACH` is blocked, and `tests/security/test_sandbox.py` asserts this.

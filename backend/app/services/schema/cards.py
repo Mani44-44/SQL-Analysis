@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import DataSource, GlossaryTerm, TableMeta
 from app.services.ingestion.infer import DUCKDB_TYPES
+from app.services.sqlguard import AllowedSchema
 
 
 class ColumnCard(BaseModel):
@@ -67,6 +68,12 @@ class WorkspaceSchema(BaseModel):
     @property
     def column_count(self) -> int:
         return sum(len(t.columns) for t in self.tables)
+
+    def allowed(self) -> AllowedSchema:
+        """The validator's view of this schema (tables, row counts, columns)."""
+        return AllowedSchema.from_columns(
+            {t.name: (t.row_count, [c.name for c in t.columns]) for t in self.tables}
+        )
 
     def fingerprint(self) -> str:
         """Stable hash of everything that affects SQL generation."""
