@@ -23,7 +23,12 @@ def get_or_create_conversation(
 ) -> Conversation:
     if conversation_id:
         conv = db.get(Conversation, conversation_id)
-        if conv is None or conv.workspace_id != workspace_id:
+        # A conversation belongs to one workspace and, if it was started signed in, one user.
+        if (
+            conv is None
+            or conv.workspace_id != workspace_id
+            or (conv.user_id is not None and conv.user_id != user_id)
+        ):
             raise ConversationNotFoundError(conversation_id)
         return conv
     conv = Conversation(workspace_id=workspace_id, user_id=user_id, title=title[:300])

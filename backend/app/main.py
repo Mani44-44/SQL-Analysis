@@ -32,6 +32,13 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    from app.core.security import DEFAULT_SECRET
+
+    secret = settings.jwt_secret.get_secret_value()
+    if settings.environment == "prod" and (secret == DEFAULT_SECRET or len(secret) < 32):
+        raise RuntimeError(
+            "Set JWT_SECRET (at least 32 random characters) before running in production."
+        )
     configure_logging(settings.log_level, settings.log_json)
     if settings.sentry_dsn:
         try:

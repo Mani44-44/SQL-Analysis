@@ -1,15 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, type User } from "@/lib/api";
 import { Brand } from "./WorkspaceShell";
 
 export function TopBar() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null | undefined>(undefined);
   useEffect(() => {
     api.me().then(setUser, () => setUser(null));
   }, []);
+
+  async function signOut() {
+    await api.logout().catch(() => undefined);
+    setUser(null);
+    router.push("/");
+  }
   return (
     <header className="mx-auto flex max-w-6xl items-center gap-5 px-4 py-4 md:px-8">
       <Brand />
@@ -18,9 +26,14 @@ export function TopBar() {
           Accuracy
         </Link>
         {user ? (
-          <Link href="/workspaces" className="text-ink-soft hover:text-ink">
-            Your workspaces
-          </Link>
+          <>
+            <Link href="/workspaces" className="text-ink-soft hover:text-ink">
+              Your workspaces
+            </Link>
+            <button type="button" onClick={signOut} className="text-ink-soft hover:text-ink" title={user.email}>
+              Sign out
+            </button>
+          </>
         ) : user === null ? (
           <>
             <Link href="/login" className="text-ink-soft hover:text-ink">

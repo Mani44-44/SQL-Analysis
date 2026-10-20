@@ -29,6 +29,10 @@ export default function WorkspacesPage() {
       const ws = await api.createWorkspace(name.trim());
       router.push(`/w/${ws.id}/data`);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        router.push("/login?next=/workspaces");
+        return;
+      }
       setError(err as ApiError);
       setBusy(false);
     }

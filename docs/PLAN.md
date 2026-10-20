@@ -18,7 +18,7 @@ The status column is updated as phases land.
 | P5 | Charts, explanations, history, feedback, export | done |
 | P6 | Evaluation harness and CI eval | done |
 | P7 | Frontend | done |
-| P8 | Auth, limits, observability | pending |
+| P8 | Auth, limits, observability | done |
 | P9 | Deploy readiness and docs | pending |
 | P10 | Stretch | backlog |
 

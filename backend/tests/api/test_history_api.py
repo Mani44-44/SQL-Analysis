@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 
 from app.demo.questions import DEMO_QUESTIONS
 from app.services.llm import MockProvider
+from tests.conftest import signup
 
 
 def _ask(client: TestClient, ws: str, q: str, conv: str | None = None) -> dict:  # type: ignore[type-arg]
@@ -33,6 +34,7 @@ def test_explanation_uses_llm_output(
 
 
 def test_conversation_history_endpoints(client: TestClient, demo_ws: str) -> None:
+    signup(client)
     first = _ask(client, demo_ws, DEMO_QUESTIONS[0].question)
     _ask(client, demo_ws, DEMO_QUESTIONS[1].question, first["conversation_id"])
     convs = client.get(f"/api/v1/workspaces/{demo_ws}/conversations").json()
@@ -86,6 +88,7 @@ def test_export_rejects_failed_runs(client: TestClient, demo_ws: str) -> None:
 
 
 def test_saved_queries(client: TestClient) -> None:
+    signup(client)
     ws = client.post("/api/v1/workspaces", json={"name": "w"}).json()["id"]
     client.post(
         f"/api/v1/workspaces/{ws}/sources/upload",
@@ -119,6 +122,7 @@ def test_manual_run_has_chart(client: TestClient, demo_ws: str) -> None:
 
 def test_suggestions(client: TestClient, demo_ws: str) -> None:
     demo = client.get(f"/api/v1/workspaces/{demo_ws}/suggestions").json()
+    signup(client)
     assert demo[0] == DEMO_QUESTIONS[0].question
     ws = client.post("/api/v1/workspaces", json={"name": "w"}).json()["id"]
     client.post(

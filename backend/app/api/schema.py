@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_workspace, get_writable_workspace
-from app.db.models import ColumnMeta, GlossaryTerm, TableMeta, Workspace
+from app.api.deps import ensure_access, get_current_user, get_workspace, get_writable_workspace
+from app.db.models import ColumnMeta, GlossaryTerm, TableMeta, User, Workspace
 from app.db.session import get_db
 from app.services.ingestion.infer import LogicalType
 from app.services.ingestion.service import ingest_source
@@ -28,10 +28,8 @@ def get_schema(
     return load_workspace_schema(db, ws.id)
 
 
-def _ensure_writable(db: Session, workspace_id: str) -> None:
-    ws = db.get(Workspace, workspace_id)
-    if ws is None or ws.is_demo:
-        raise HTTPException(status_code=403, detail="the demo workspace is read-only")
+def _ensure_writable(db: Session, workspace_id: str, user: User | None) -> None:
+    ensure_access(db, workspace_id, user, write=True)
 
 
 class ColumnPatch(BaseModel):
@@ -42,13 +40,16 @@ class ColumnPatch(BaseModel):
 
 @router.patch("/columns/{column_id}", response_model=WorkspaceSchema)
 def patch_column(
-    column_id: str, body: ColumnPatch, db: Session = Depends(get_db)
+    column_id: str,
+    body: ColumnPatch,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user),
 ) -> WorkspaceSchema:
     col = db.get(ColumnMeta, column_id)
     if col is None:
         raise HTTPException(status_code=404, detail="column not found")
     table = col.table
-    _ensure_writable(db, table.workspace_id)
+    _ensure_writable(db, table.workspace_id, user)
     if body.description is not None:
         col.description = body.description.strip() or None
     reload = False
@@ -71,11 +72,16 @@ class TablePatch(BaseModel):
 
 
 @router.patch("/tables/{table_id}", response_model=WorkspaceSchema)
-def patch_table(table_id: str, body: TablePatch, db: Session = Depends(get_db)) -> WorkspaceSchema:
+def patch_table(
+    table_id: str,
+    body: TablePatch,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+) -> WorkspaceSchema:
     t = db.get(TableMeta, table_id)
     if t is None:
         raise HTTPException(status_code=404, detail="table not found")
-    _ensure_writable(db, t.workspace_id)
+    _ensure_writable(db, t.workspace_id, user)
     if body.description is not None:
         t.description = body.description.strip() or None
     db.commit()
@@ -110,10 +116,12 @@ def add_glossary(
 
 
 @router.delete("/glossary/{term_id}", status_code=204)
-def delete_glossary(term_id: str, db: Session = Depends(get_db)) -> None:
+def delete_glossary(
+    term_id: str, db: Session = Depends(get_db), user: User | None = Depends(get_current_user)
+) -> None:
     g = db.get(GlossaryTerm, term_id)
     if g is None:
         raise HTTPException(status_code=404, detail="term not found")
-    _ensure_writable(db, g.workspace_id)
+    _ensure_writable(db, g.workspace_id, user)
     db.delete(g)
     db.commit()

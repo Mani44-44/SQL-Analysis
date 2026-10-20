@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, ApiError, type Workspace } from "@/lib/api";
+import { api, ApiError, type User, type Workspace } from "@/lib/api";
 import { Notice, Spinner } from "./ui";
 
 const WorkspaceContext = createContext<Workspace | null>(null);
@@ -26,10 +26,25 @@ export function WorkspaceShell({ id, children }: { id: string; children: ReactNo
   const [ws, setWs] = useState<Workspace | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    api.workspace(id).then(setWs, setError);
-  }, [id]);
+    api.me().then(setUser, () => setUser(null));
+  }, []);
+
+  useEffect(() => {
+    api.workspace(id).then(setWs, (e) => {
+      // Private workspace and nobody signed in: send them to sign in, then back here.
+      if (e instanceof ApiError && e.status === 401) router.replace(`/login?next=${encodeURIComponent(`/w/${id}/ask`)}`);
+      else setError(e);
+    });
+  }, [id, router]);
+
+  async function signOut() {
+    await api.logout().catch(() => undefined);
+    router.push("/");
+  }
 
   const nav = [
     { href: `/w/${id}/ask`, label: "Ask" },
@@ -70,6 +85,15 @@ export function WorkspaceShell({ id, children }: { id: string; children: ReactNo
           <Link href="/metrics" className="block py-1 text-sm text-muted hover:text-ink">
             Accuracy & metrics
           </Link>
+          {user ? (
+            <button type="button" onClick={signOut} className="block py-1 text-sm text-muted hover:text-ink" title={user.email}>
+              Sign out
+            </button>
+          ) : (
+            <Link href={`/login?next=${encodeURIComponent(pathname ?? "/")}`} className="block py-1 text-sm text-muted hover:text-ink">
+              Sign in
+            </Link>
+          )}
         </div>
       </aside>
       <main id="main" className="min-w-0 flex-1 px-4 py-6 md:px-10 md:py-8">

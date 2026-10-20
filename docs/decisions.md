@@ -114,3 +114,15 @@ Each entry has three parts: context, decision, and trade-off. New entries go at 
   - **Formatting:** amounts use Indian digit grouping (₹5,04,000) and compact lakh ticks on chart axes.
   - **Accessibility:** a visible focus ring, reduced-motion support, `aria-sort` on sortable tables, and alt descriptions on charts.
 - **Finding:** Tailwind v4's scanner skips paths containing `[`, which is how Next.js names dynamic routes. Page implementations therefore live in `src/views/`, and the bracketed route files only re-export them.
+
+## D-020: Auth, access model and limits
+- **Auth:** argon2id password hashes. A session is an HS256 JWT (7-day expiry, `typ=session`) in an httpOnly cookie. The API also accepts `Authorization: Bearer` for scripts. SameSite is `lax` by default. When the frontend and API are on different sites, set `COOKIE_SAMESITE=none` with `COOKIE_SECURE=true`. In prod, the app refuses to start if `JWT_SECRET` is the placeholder or shorter than 32 characters, and an empty `JWT_SECRET=` line falls back to the placeholder rather than an empty key.
+- **Access model:**
+  - The demo workspace is readable and askable by anyone and writable by no one (403).
+  - Other workspaces are open to members only. Only the owner can delete one.
+  - Objects addressed by their own id (sources, columns, runs, conversations, saved queries) are checked through their workspace.
+  - A missing or forbidden workspace returns 404, so ids can't be probed. It returns 401 when nobody is signed in, so the UI can send them to sign in.
+- **Demo privacy:** demo conversations and runs belong to whoever asked them. Signed-in users see only their own, and anonymous history isn't listed at all. Another user can't continue someone else's conversation.
+- **Limits:** a sliding-window rate limiter (30/min) and a daily LLM cost cap ($1.00 per UTC day), keyed by user id or, for anonymous callers, by client IP (first `X-Forwarded-For` hop). Login has its own limit of 10 attempts per minute per email, which slows password guessing against one account. Both are in-process behind small classes. That is correct for one instance, but several replicas need a shared store such as Redis.
+- **Known gap:** the executor's audit log line has no user id. Attribution lives in `query_runs.user_id`, which the API sets for both ask and run.
+- **Trade-off:** IP-keyed limits are easy to share by accident (NAT) and easy to dodge (rotating IPs). The cost cap is the real guard against a runaway bill, so keep the provider-side spend limit configured as well.

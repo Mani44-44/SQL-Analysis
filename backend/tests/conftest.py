@@ -74,3 +74,29 @@ def demo_ws(db: Session) -> str:
     from app.demo.seed import seed_demo
 
     return seed_demo(db).id
+
+
+def signup(
+    c: TestClient, email: str = "owner@example.com", password: str = "correct-horse-1"
+) -> str:
+    """Register (or log in) on this client; the session cookie is kept by the client."""
+    r = c.post("/api/v1/auth/register", json={"email": email, "password": password})
+    if r.status_code == 409:
+        r = c.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert r.status_code in (200, 201), r.text
+    return str(r.json()["id"])
+
+
+@pytest.fixture
+def user_client(client: TestClient) -> TestClient:
+    signup(client)
+    return client
+
+
+@pytest.fixture(autouse=True)
+def _reset_limits() -> Iterator[None]:
+    from app.core.limits import cost_tracker, rate_limiter
+
+    rate_limiter().reset()
+    cost_tracker().reset()
+    yield

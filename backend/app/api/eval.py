@@ -11,7 +11,8 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import EvalRun, Feedback, QueryRun
+from app.api.deps import ensure_access, get_current_user
+from app.db.models import EvalRun, Feedback, QueryRun, User
 from app.db.session import get_db
 from app.eval.metrics import percentile
 from app.eval.report import compare_summaries
@@ -134,8 +135,11 @@ def metrics(
     db: Session = Depends(get_db),
     days: int = Query(30, ge=1, le=365),
     workspace_id: str | None = None,
+    user: User | None = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Operational metrics over natural-language asks in the last `days` days."""
+    """Operational metrics over natural-language asks in the last `days` days (aggregates only)."""
+    if workspace_id:
+        ensure_access(db, workspace_id, user)
     since = datetime.now(UTC) - timedelta(days=days)
     q = select(QueryRun).where(QueryRun.created_at >= since, QueryRun.source == "ask")
     if workspace_id:

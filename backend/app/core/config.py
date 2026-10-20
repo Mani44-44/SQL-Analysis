@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
@@ -32,9 +32,11 @@ class Settings(BaseSettings):
     data_dir: Path = REPO_DIR / "data"
 
     # --- auth ---
-    jwt_secret: SecretStr = SecretStr("dev-insecure-change-me")
+    jwt_secret: SecretStr = SecretStr("dev-insecure-placeholder-change-me-before-deploying")
     jwt_ttl_hours: int = 24 * 7
     cookie_secure: bool = False
+    # "none" (with cookie_secure) when the frontend and API are on different sites.
+    cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 
     # --- llm ---
     llm_provider: Literal["auto", "anthropic", "mock"] = "auto"
@@ -72,6 +74,19 @@ class Settings(BaseSettings):
 
     # --- observability ---
     sentry_dsn: str | None = None
+
+    @field_validator("jwt_secret", mode="before")
+    @classmethod
+    def _empty_secret_means_default(cls, v: object) -> object:
+        # An empty JWT_SECRET= line (e.g. copied from .env.example) must never mean "no key".
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return "dev-insecure-placeholder-change-me-before-deploying"
+        return v
+
+    @field_validator("anthropic_api_key", mode="before")
+    @classmethod
+    def _empty_key_is_none(cls, v: object) -> object:
+        return None if isinstance(v, str) and not v.strip() else v
 
     @property
     def workspaces_dir(self) -> Path:

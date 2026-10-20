@@ -14,9 +14,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_workspace
+from app.api.deps import ensure_access, get_current_user, get_workspace, get_writable_workspace
 from app.core.config import get_settings
-from app.db.models import Conversation, Feedback, QueryRun, SavedQuery, Workspace
+from app.db.models import Conversation, Feedback, QueryRun, SavedQuery, User, Workspace
 from app.db.session import get_db
 from app.services.execution.executor import ExecutionError
 from app.services.execution.service import run_query
@@ -93,8 +93,12 @@ def _run_summary(r: QueryRun, rating: int | None = None) -> RunSummary:
 def list_conversations(
     ws: Workspace = Depends(get_workspace),
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user),
     limit: int = Query(50, ge=1, le=200),
 ) -> list[ConversationSummary]:
+    """The caller's own conversations (anonymous demo visitors have no listable history)."""
+    if user is None:
+        return []
     stats = (
         select(
             QueryRun.conversation_id,
@@ -107,7 +111,7 @@ def list_conversations(
     rows = db.execute(
         select(Conversation, stats.c.n, stats.c.last)
         .outerjoin(stats, stats.c.conversation_id == Conversation.id)
-        .where(Conversation.workspace_id == ws.id)
+        .where(Conversation.workspace_id == ws.id, Conversation.user_id == user.id)
         .order_by(func.coalesce(stats.c.last, Conversation.created_at).desc())
         .limit(limit)
     ).all()
@@ -120,10 +124,15 @@ def list_conversations(
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
-def get_conversation(conversation_id: str, db: Session = Depends(get_db)) -> ConversationDetail:
+def get_conversation(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+) -> ConversationDetail:
     conv = db.get(Conversation, conversation_id)
     if conv is None:
         raise HTTPException(status_code=404, detail="conversation not found")
+    _check_owner(db, conv.workspace_id, conv.user_id, user, "conversation not found")
     runs = db.scalars(
         select(QueryRun).where(QueryRun.conversation_id == conv.id).order_by(QueryRun.created_at)
     ).all()
@@ -148,10 +157,20 @@ def _latest_ratings(db: Session, run_ids: list[str]) -> dict[str, int]:
     return out
 
 
-def _get_run(db: Session, run_id: str) -> QueryRun:
+def _check_owner(
+    db: Session, workspace_id: str, owner_id: str | None, user: User | None, missing: str
+) -> None:
+    """Workspace access, plus: in the shared demo, signed-in users' items stay private."""
+    ws = ensure_access(db, workspace_id, user)
+    if ws.is_demo and owner_id is not None and (user is None or user.id != owner_id):
+        raise HTTPException(status_code=404, detail=missing)
+
+
+def _get_run(db: Session, run_id: str, user: User | None) -> QueryRun:
     run = db.get(QueryRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="query run not found")
+    _check_owner(db, run.workspace_id, run.user_id, user, "query run not found")
     return run
 
 
@@ -166,8 +185,10 @@ class RunDetail(RunSummary):
 
 
 @router.get("/query-runs/{run_id}", response_model=RunDetail)
-def get_run(run_id: str, db: Session = Depends(get_db)) -> RunDetail:
-    r = _get_run(db, run_id)
+def get_run(
+    run_id: str, db: Session = Depends(get_db), user: User | None = Depends(get_current_user)
+) -> RunDetail:
+    r = _get_run(db, run_id, user)
     base = _run_summary(r, _latest_ratings(db, [r.id]).get(r.id))
     return RunDetail(
         **base.model_dump(),
@@ -199,8 +220,13 @@ class FeedbackOut(BaseModel):
 
 
 @router.post("/query-runs/{run_id}/feedback", response_model=FeedbackOut, status_code=201)
-def add_feedback(run_id: str, body: FeedbackIn, db: Session = Depends(get_db)) -> FeedbackOut:
-    run = _get_run(db, run_id)
+def add_feedback(
+    run_id: str,
+    body: FeedbackIn,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user),
+) -> FeedbackOut:
+    run = _get_run(db, run_id, user)
     corrected = (body.corrected_sql or "").strip() or None
     if corrected:
         schema = load_workspace_schema(db, run.workspace_id)
@@ -213,6 +239,7 @@ def add_feedback(run_id: str, body: FeedbackIn, db: Session = Depends(get_db)) -
     fb = Feedback(
         query_run_id=run.id,
         rating=body.rating,
+        user_id=user.id if user else None,
         corrected_sql=corrected,
         comment=(body.comment or "").strip() or None,
     )
@@ -262,7 +289,10 @@ def list_saved(
     "/workspaces/{workspace_id}/saved-queries", response_model=SavedQueryOut, status_code=201
 )
 def create_saved(
-    body: SavedQueryIn, ws: Workspace = Depends(get_workspace), db: Session = Depends(get_db)
+    body: SavedQueryIn,
+    ws: Workspace = Depends(get_writable_workspace),
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user),
 ) -> SavedQuery:
     if ws.is_demo:
         raise HTTPException(status_code=403, detail="the demo workspace is read-only")
@@ -271,17 +301,22 @@ def create_saved(
         sql = validate_sql(body.sql, schema.allowed()).sql
     except SqlGuardError as e:
         raise HTTPException(status_code=422, detail=e.message) from e
-    sq = SavedQuery(workspace_id=ws.id, title=body.title.strip(), sql=sql)
+    sq = SavedQuery(
+        workspace_id=ws.id, title=body.title.strip(), sql=sql, created_by=user.id if user else None
+    )
     db.add(sq)
     db.commit()
     return sq
 
 
 @router.delete("/saved-queries/{saved_id}", status_code=204)
-def delete_saved(saved_id: str, db: Session = Depends(get_db)) -> None:
+def delete_saved(
+    saved_id: str, db: Session = Depends(get_db), user: User | None = Depends(get_current_user)
+) -> None:
     sq = db.get(SavedQuery, saved_id)
     if sq is None:
         raise HTTPException(status_code=404, detail="saved query not found")
+    ensure_access(db, sq.workspace_id, user, write=True)
     db.delete(sq)
     db.commit()
 
@@ -306,8 +341,9 @@ def export_run(
     run_id: str,
     format: Literal["csv"] = "csv",
     db: Session = Depends(get_db),
+    user: User | None = Depends(get_current_user),
 ) -> StreamingResponse:
-    run = _get_run(db, run_id)
+    run = _get_run(db, run_id, user)
     if run.status != "ok" or not run.final_sql:
         raise HTTPException(status_code=409, detail="only successful queries can be exported")
     schema = load_workspace_schema(db, run.workspace_id)

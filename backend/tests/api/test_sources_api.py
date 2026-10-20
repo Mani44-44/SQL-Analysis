@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from tests.conftest import signup
+
 CSV = 'Name,Amount,Date\nalpha,"₹1,000",2025-01-02\nbeta,Rs. 50,03/01/2025\n'.encode()
 
 
 def _ws(client: TestClient, name: str = "mine") -> str:
+    signup(client)
     r = client.post("/api/v1/workspaces", json={"name": name})
     assert r.status_code == 201
     return str(r.json()["id"])

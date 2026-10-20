@@ -10,9 +10,9 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_workspace, get_writable_workspace
+from app.api.deps import ensure_access, get_current_user, get_workspace, get_writable_workspace
 from app.core.config import get_settings
-from app.db.models import DataSource, TableMeta, Workspace
+from app.db.models import DataSource, TableMeta, User, Workspace
 from app.db.session import get_db
 from app.services.ingestion.readers import UnsupportedFileError, detect_type
 from app.services.ingestion.service import (
@@ -118,16 +118,20 @@ def _get_source(source_id: str, db: Session) -> DataSource:
 
 
 @router.get("/sources/{source_id}", response_model=SourceOut)
-def read_source(source_id: str, db: Session = Depends(get_db)) -> SourceOut:
-    return _out(db, _get_source(source_id, db))
+def read_source(
+    source_id: str, db: Session = Depends(get_db), user: User | None = Depends(get_current_user)
+) -> SourceOut:
+    s = _get_source(source_id, db)
+    ensure_access(db, s.workspace_id, user)
+    return _out(db, s)
 
 
 @router.delete("/sources/{source_id}", status_code=204)
-def delete_source(source_id: str, db: Session = Depends(get_db)) -> None:
+def delete_source(
+    source_id: str, db: Session = Depends(get_db), user: User | None = Depends(get_current_user)
+) -> None:
     s = _get_source(source_id, db)
-    ws = db.get(Workspace, s.workspace_id)
-    if ws is not None and ws.is_demo:
-        raise HTTPException(status_code=403, detail="the demo workspace is read-only")
+    ensure_access(db, s.workspace_id, user, write=True)
     delete_source_data(db, s)
     db.delete(s)
     db.commit()

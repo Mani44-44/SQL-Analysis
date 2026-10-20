@@ -14,8 +14,9 @@ from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 from starlette.concurrency import run_in_threadpool
 
-from app.api.deps import get_workspace
+from app.api.deps import Caller, enforce_limits, get_workspace
 from app.core.config import get_settings
+from app.core.limits import cost_tracker
 from app.db.models import Workspace
 from app.db.session import get_db, get_sessionmaker
 from app.services.charts.picker import chart_dict
@@ -127,6 +128,7 @@ def _to_out(result: PipelineResult, run_id: str, conversation_id: str | None) ->
 def _run_ask(
     workspace_id: str,
     body: AskIn,
+    caller: Caller,
     on_event: Any = None,
 ) -> AskOut:
     """Runs in a worker thread with its own DB session."""
@@ -135,7 +137,7 @@ def _run_ask(
         schema = load_workspace_schema(db, workspace_id)
         try:
             conv = get_or_create_conversation(
-                db, workspace_id, body.conversation_id, title=body.question
+                db, workspace_id, body.conversation_id, title=body.question, user_id=caller.user_id
             )
         except ConversationNotFoundError as e:
             raise HTTPException(status_code=404, detail="conversation not found") from e
@@ -148,16 +150,25 @@ def _run_ask(
             history=history,
             on_event=on_event,
         )
-        run = save_pipeline_run(db, workspace_id=workspace_id, conversation=conv, result=result)
+        if not result.cached:
+            cost_tracker().add(caller.key, result.cost_usd)
+        run = save_pipeline_run(
+            db, workspace_id=workspace_id, conversation=conv, result=result, user_id=caller.user_id
+        )
         return _to_out(result, run.id, conv.id)
     finally:
         db.close()
 
 
 @router.post("/workspaces/{workspace_id}/ask", response_model=AskOut)
-async def ask(body: AskIn, request: Request, ws: Workspace = Depends(get_workspace)) -> Any:
+async def ask(
+    body: AskIn,
+    request: Request,
+    ws: Workspace = Depends(get_workspace),
+    caller: Caller = Depends(enforce_limits),
+) -> Any:
     if "text/event-stream" not in request.headers.get("accept", ""):
-        return await run_in_threadpool(_run_ask, ws.id, body)
+        return await run_in_threadpool(_run_ask, ws.id, body, caller)
 
     loop = asyncio.get_running_loop()
     queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue()
@@ -168,7 +179,7 @@ async def ask(body: AskIn, request: Request, ws: Workspace = Depends(get_workspa
 
     async def worker() -> None:
         try:
-            out = await run_in_threadpool(_run_ask, ws.id, body, on_event)
+            out = await run_in_threadpool(_run_ask, ws.id, body, caller, on_event)
             await queue.put(("result", out.model_dump(mode="json")))
         except HTTPException as e:
             await queue.put(("error", {"detail": e.detail, "status": e.status_code}))
@@ -210,14 +221,16 @@ class RunSqlOut(BaseModel):
     duration_ms: int = 0
 
 
-def _run_sql(workspace_id: str, body: RunSqlIn) -> RunSqlOut:
+def _run_sql(workspace_id: str, body: RunSqlIn, caller: Caller) -> RunSqlOut:
     db: Session = get_sessionmaker()()
     try:
         schema = load_workspace_schema(db, workspace_id)
         conv = None
         if body.conversation_id:
             try:
-                conv = get_or_create_conversation(db, workspace_id, body.conversation_id, title="")
+                conv = get_or_create_conversation(
+                    db, workspace_id, body.conversation_id, title="", user_id=caller.user_id
+                )
             except ConversationNotFoundError as e:
                 raise HTTPException(status_code=404, detail="conversation not found") from e
         start = time.perf_counter()
@@ -232,6 +245,7 @@ def _run_sql(workspace_id: str, body: RunSqlIn) -> RunSqlOut:
                 status="error",
                 error=e.message,
                 error_category=e.code,
+                user_id=caller.user_id,
                 duration_ms=int((time.perf_counter() - start) * 1000),
             )
             return RunSqlOut(
@@ -252,6 +266,7 @@ def _run_sql(workspace_id: str, body: RunSqlIn) -> RunSqlOut:
             truncated=res.truncated,
             duration_ms=res.duration_ms,
             chart=chart,
+            user_id=caller.user_id,
         )
         return RunSqlOut(
             query_run_id=run.id,
@@ -280,9 +295,11 @@ def _chart_for(
 
 @router.post("/workspaces/{workspace_id}/sql/run", response_model=RunSqlOut)
 async def run_sql(
-    body: RunSqlIn, ws: Workspace = Depends(get_workspace), db: Session = Depends(get_db)
+    body: RunSqlIn,
+    ws: Workspace = Depends(get_workspace),
+    caller: Caller = Depends(enforce_limits),
 ) -> RunSqlOut:
-    return await run_in_threadpool(_run_sql, ws.id, body)
+    return await run_in_threadpool(_run_sql, ws.id, body, caller)
 
 
 @router.get("/workspaces/{workspace_id}/suggestions", response_model=list[str])

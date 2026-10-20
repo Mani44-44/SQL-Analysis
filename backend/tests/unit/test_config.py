@@ -23,6 +23,12 @@ def test_mock_llm_selected_without_key(monkeypatch: pytest.MonkeyPatch) -> None:
     assert Settings(_env_file=None, llm_provider="anthropic").use_mock_llm is False
 
 
+def test_empty_env_values_are_safe() -> None:
+    s = Settings(_env_file=None, jwt_secret="", anthropic_api_key="  ")
+    assert len(s.jwt_secret.get_secret_value()) >= 32
+    assert s.anthropic_api_key is None and s.use_mock_llm
+
+
 def test_secret_not_in_repr() -> None:
     s = Settings(_env_file=None, anthropic_api_key="sk-secret-value")
     assert "sk-secret-value" not in repr(s)
