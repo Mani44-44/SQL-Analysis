@@ -13,6 +13,7 @@ from collections.abc import Callable
 from typing import Any
 
 from app.core.config import Settings, get_settings
+from app.services.charts.picker import chart_dict
 from app.services.execution.executor import ExecutionError
 from app.services.execution.service import run_query
 from app.services.llm import LLMError, LLMProvider, LLMRefusalError, Tier
@@ -20,6 +21,7 @@ from app.services.schema.cards import WorkspaceSchema
 from app.services.schema.linking import link_schema
 from app.services.sqlguard import SqlGuardError
 from app.services.text2sql.cache import AnswerCache
+from app.services.text2sql.explain import explain
 from app.services.text2sql.models import (
     Attempt,
     GenerationOutput,
@@ -312,9 +314,33 @@ class Text2SQLPipeline:
     def _post_process(
         self, result: PipelineResult, config: PipelineConfig, emit: EventCallback
     ) -> None:
-        """Hook for chart selection / explanation (Phase 5)."""
+        """Warnings, chart selection and the plain-language explanation."""
         if result.status != "ok":
             return
+        try:
+            result.chart = chart_dict(
+                result.columns, result.column_types, result.rows, result.resolved_question
+            )
+        except ValueError:
+            logger.warning("chart_spec_invalid")
+            result.chart = {"type": "table", "x": None, "y": [], "series": None, "title": ""}
+        emit("chart", {"chart": result.chart})
+        if config.explain:
+            t0 = time.perf_counter()
+            text, usage = explain(self.provider, result)
+            result.explanation = text
+            stage = StageTrace("explain", int((time.perf_counter() - t0) * 1000))
+            if usage is not None:
+                stage.tokens_in, stage.tokens_out, stage.cost_usd = (
+                    usage.tokens_in,
+                    usage.tokens_out,
+                    usage.cost_usd,
+                )
+                result.tokens_in += usage.tokens_in
+                result.tokens_out += usage.tokens_out
+                result.cost_usd += usage.cost_usd
+            result.trace.append(stage)
+            emit("explanation", {"text": text})
         if result.truncated:
             result.warnings.append(
                 f"Showing the first {result.row_count:,} rows; the full result is larger."

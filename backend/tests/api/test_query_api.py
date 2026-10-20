@@ -42,8 +42,9 @@ def test_follow_up_uses_conversation_history(
         f"/api/v1/workspaces/{demo_ws}/ask",
         json={"question": "now by month", "conversation_id": first["conversation_id"]},
     )
-    assert "total spend in 2025" in mock_llm.calls[-1].last_user
-    assert "<history>" in mock_llm.calls[-1].last_user
+    last_gen = [c for c in mock_llm.calls if c.task == "generate_sql"][-1]
+    assert "total spend in 2025" in last_gen.last_user
+    assert "<history>" in last_gen.last_user
 
 
 def test_unknown_conversation_404(client: TestClient, demo_ws: str) -> None:

@@ -26,6 +26,10 @@ def gen(sql: str = "", kind: str = "sql", **kw: Any) -> dict[str, Any]:
     }
 
 
+def gen_calls(p: MockProvider) -> list[Any]:
+    return [c for c in p.calls if c.task != "explain"]
+
+
 @pytest.fixture
 def schema(db: Session, demo_ws: str) -> WorkspaceSchema:
     return load_workspace_schema(db, demo_ws)
@@ -46,7 +50,7 @@ def test_success_first_attempt(
     assert r.columns == ["n"] and r.rows[0][0] > 1000
     assert len(r.attempts) == 1 and r.attempts[0].error is None
     assert r.assumptions == ["x"]
-    assert [t.stage for t in r.trace] == ["link", "generate_sql", "execute"]
+    assert [t.stage for t in r.trace] == ["link", "generate_sql", "execute", "explain"]
     assert r.tokens_in > 0 and r.prompt_version == "generate_sql@v1"
     system = mock_llm.calls[0].system
     assert "TABLE transactions" in system and "<glossary>" in system
@@ -100,7 +104,7 @@ def test_empty_result_retry_same_sql_accepted(
     r = _run(Text2SQLPipeline(mock_llm), demo_ws, schema)
     assert r.status == "ok" and r.rows == []
     assert len(r.attempts) == 1 and r.attempts[0].error is None
-    assert len(mock_llm.calls) == 2
+    assert len(gen_calls(mock_llm)) == 2
     assert "returned no rows" in mock_llm.calls[1].last_user
     assert "The query returned no rows." in r.warnings
 
@@ -187,7 +191,7 @@ def test_cache_hit(mock_llm: MockProvider, demo_ws: str, schema: WorkspaceSchema
     b = _run(p, demo_ws, schema, "  one? ")
     assert not a.cached and b.cached
     assert b.rows == a.rows
-    assert len(mock_llm.calls) == 1
+    assert len(gen_calls(mock_llm)) == 1
 
 
 def test_ablation_flags_change_prompt(
@@ -196,7 +200,7 @@ def test_ablation_flags_change_prompt(
     mock_llm.register("generate_sql", lambda c: gen("SELECT 1 AS x"))
     p = Text2SQLPipeline(mock_llm)
     _run(p, demo_ws, schema, config=PipelineConfig(use_glossary=False, use_samples=False))
-    system = mock_llm.calls[-1].system
+    system = gen_calls(mock_llm)[-1].system
     assert "<glossary>\n" not in system
     schema_block = system.split("<schema>\n", 1)[1].split("</schema>", 1)[0]
     assert "TABLE transactions" in schema_block

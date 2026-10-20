@@ -18,6 +18,7 @@ from app.api.deps import get_workspace
 from app.core.config import get_settings
 from app.db.models import Workspace
 from app.db.session import get_db, get_sessionmaker
+from app.services.charts.picker import chart_dict
 from app.services.execution.executor import ExecutionError
 from app.services.execution.service import run_query
 from app.services.history import (
@@ -271,8 +272,10 @@ def _run_sql(workspace_id: str, body: RunSqlIn) -> RunSqlOut:
 def _chart_for(
     columns: list[str], types: list[str], rows: list[list[Any]]
 ) -> dict[str, Any] | None:
-    """Chart selection hook (Phase 5)."""
-    return None
+    try:
+        return chart_dict(columns, types, rows)
+    except ValueError:
+        return None
 
 
 @router.post("/workspaces/{workspace_id}/sql/run", response_model=RunSqlOut)
@@ -280,3 +283,28 @@ async def run_sql(
     body: RunSqlIn, ws: Workspace = Depends(get_workspace), db: Session = Depends(get_db)
 ) -> RunSqlOut:
     return await run_in_threadpool(_run_sql, ws.id, body)
+
+
+@router.get("/workspaces/{workspace_id}/suggestions", response_model=list[str])
+def suggestions(ws: Workspace = Depends(get_workspace), db: Session = Depends(get_db)) -> list[str]:
+    """Suggested starter questions: curated for the demo, schema-derived otherwise."""
+    if ws.is_demo:
+        from app.demo.questions import DEMO_QUESTIONS
+
+        return [q.question for q in DEMO_QUESTIONS]
+    schema = load_workspace_schema(db, ws.id)
+    out: list[str] = []
+    for t in schema.tables[:3]:
+        name = t.name.replace("_", " ")
+        out.append(f"How many rows are in {name}?")
+        dates = [c for c in t.columns if c.type in ("date", "timestamp")]
+        nums = [c for c in t.columns if c.type in ("integer", "float", "currency")]
+        cats = [c for c in t.columns if c.type == "text" and 1 < c.distinct_count <= 30]
+        if dates and nums:
+            out.append(f"Show total {nums[0].name.replace('_', ' ')} by month from {name}")
+        if cats and nums:
+            out.append(
+                f"What is the total {nums[0].name.replace('_', ' ')} by "
+                f"{cats[0].name.replace('_', ' ')} in {name}?"
+            )
+    return out[:6]
