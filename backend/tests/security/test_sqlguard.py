@@ -15,6 +15,10 @@ from tests.security.conftest import STATIC_SCHEMA
 
 ALLOWED = [
     "SELECT * FROM transactions",
+    "WITH a AS (SELECT * FROM transactions), b AS (SELECT * FROM a) SELECT * FROM b",
+    "WITH transactions AS (SELECT * FROM transactions WHERE status = 'Success') "
+    "SELECT count(*) FROM transactions",
+    "WITH a AS (SELECT 1 AS x) SELECT * FROM (WITH b AS (SELECT * FROM a) SELECT * FROM b) s",
     "select count(*) from transactions where status = 'Success'",
     "FROM transactions SELECT txn_id LIMIT 5",
     "SELECT strftime(txn_date, '%Y-%m') AS month, sum(amount) AS spend FROM transactions "
@@ -124,6 +128,28 @@ BLOCKED: list[tuple[str, str, str]] = [
         "SELECT * FROM (WITH pg_tables AS (SELECT 1) SELECT 1) x, pg_tables",
         "unknown_table",
     ),
+    # ...and a CTE body cannot see itself or later siblings (they resolve to real relations)
+    (
+        "cte_scope",
+        "WITH pg_tables AS (SELECT * FROM pg_tables) SELECT * FROM pg_tables",
+        "unknown_table",
+    ),
+    (
+        "cte_scope",
+        "WITH a AS (SELECT * FROM pg_tables), pg_tables AS (SELECT 1) SELECT * FROM a",
+        "unknown_table",
+    ),
+    (
+        "cte_scope",
+        "WITH sqlite_master AS (SELECT * FROM sqlite_master) SELECT * FROM sqlite_master",
+        "unknown_table",
+    ),
+    (
+        "cte_scope",
+        "WITH a AS (SELECT * FROM pg_am), pg_am AS (SELECT 1) SELECT * FROM a",
+        "unknown_table",
+    ),
+    ("cte_scope", "WITH x AS (SELECT * FROM x) SELECT * FROM x", "unknown_table"),
     # expensive queries
     (
         "expensive",

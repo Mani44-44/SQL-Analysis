@@ -115,13 +115,29 @@ def _unwrap(node: exp.Expr) -> exp.Expr:
 
 
 def _cte_in_scope(table: exp.Table, name: str) -> bool:
+    """True if `name` resolves to a CTE visible from `table`.
+
+    A non-recursive CTE body can see only the CTEs defined *before* it in the same WITH, never
+    itself or later siblings; otherwise `WITH pg_tables AS (SELECT * FROM pg_tables) ...` would
+    smuggle a catalog view past the table allowlist.
+    """
+    child: exp.Expr = table
     node: exp.Expr | None = table.parent
     while node is not None:
-        with_ = node.args.get("with_") or node.args.get("with")
-        if isinstance(with_, exp.With) and any(
-            cte.alias_or_name.lower() == name for cte in with_.expressions
-        ):
-            return True
+        if isinstance(node, exp.With):
+            ctes = list(node.expressions)
+            idx = next((i for i, c in enumerate(ctes) if c is child), len(ctes))
+            if any(c.alias_or_name.lower() == name for c in ctes[:idx]):
+                return True
+        else:
+            with_ = node.args.get("with_") or node.args.get("with")
+            if (
+                isinstance(with_, exp.With)
+                and with_ is not child
+                and any(cte.alias_or_name.lower() == name for cte in with_.expressions)
+            ):
+                return True
+        child = node
         node = node.parent
     return False
 

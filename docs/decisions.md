@@ -65,3 +65,8 @@ Each entry has three parts: context, decision, and trade-off. New entries go at 
 ## D-013: Order of the validation checks
 - **Decision:** Checks run in this order: parse into a single statement, size limits, root type, forbidden nodes anywhere in the tree, tables (table functions, qualifiers, CTE scope, allowlist), functions, columns, cross joins. Checking tables before functions gives table functions such as `read_csv(...)` a clear `table_function` error. Column checks come late because they exist for the self-correction loop's error messages and are not a security boundary.
 - **Runtime finding:** With `enable_external_access=false`, DuckDB still lets a connection read its own open database file by path. That exposes only the workspace's own data. Reading another workspace's file through `FROM 'path'`, `read_csv`, `read_text`, or `ATTACH` is blocked, and `tests/security/test_sandbox.py` asserts this.
+- **Hardening after review:**
+  - CTE resolution now follows SQL scoping. A CTE body can see only the CTEs defined *before* it, never itself or later siblings. Otherwise `WITH pg_tables AS (SELECT * FROM pg_tables) …` would resolve to the catalog view.
+  - `tests/security/test_roundtrip.py` checks D-012 directly. About 160 allowlisted expressions are run both raw and regenerated, and their values and types must match.
+  - `tests/unit/test_concurrency.py` interleaves sandboxed reads with re-ingestion on the same file.
+  - `pytz` was added because fetching TIMESTAMPTZ values failed without it.

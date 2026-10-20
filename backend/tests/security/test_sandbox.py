@@ -165,3 +165,15 @@ def test_injection_via_cell_values_and_headers(db: Session) -> None:
     finally:
         con.close()
     shutil.rmtree(p.parent, ignore_errors=True)
+
+
+def test_cte_shadowing_catalog_views_blocked_end_to_end(db: Session, demo_ws: str) -> None:
+    schema = load_workspace_schema(db, demo_ws).allowed()
+    for sql in [
+        "WITH pg_tables AS (SELECT * FROM pg_tables) SELECT * FROM pg_tables",
+        "WITH a AS (SELECT * FROM pg_tables), pg_tables AS (SELECT 1) SELECT * FROM a",
+        "WITH sqlite_master AS (SELECT * FROM sqlite_master) SELECT * FROM sqlite_master",
+        "WITH a AS (SELECT * FROM pg_am), pg_am AS (SELECT 1) SELECT * FROM a",
+    ]:
+        with pytest.raises(SqlGuardError):
+            run_query(demo_ws, sql, schema)

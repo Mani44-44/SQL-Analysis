@@ -19,6 +19,7 @@ dependencies = [
     "argon2-cffi>=23.1",
     "pyjwt>=2.9",
     "sse-starlette>=2.1",
+    "pytz>=2026.5",
 ]
 
 [dependency-groups]
@@ -44,7 +45,7 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF", "S"]
 ignore = ["S101", "RUF001", "RUF002", "RUF003", "B008"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S", "B"]
+"tests/**" = ["S", "B", "E501"]
 "app/db/alembic/**" = ["E501"]
 "app/demo/**" = ["E501", "S311"]
 # identifiers are always quoted via quote_ident(); values never interpolated
