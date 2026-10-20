@@ -56,16 +56,9 @@ def _generate(call: MockCall) -> dict[str, Any]:
     }
 
 
-def _explain(call: MockCall) -> dict[str, Any]:
-    return {
-        "answer": "Here is the result of your question. (Plain-language explanations are "
-        "written by the LLM when an API key is configured.)"
-    }
-
-
 def build_default_mock() -> MockProvider:
     provider = MockProvider()
     provider.register("generate_sql", _generate)
     provider.register("correct_sql", _generate)
-    provider.register("explain", _explain)
+    # No "explain" handler: the pipeline falls back to its deterministic, data-driven summary.
     return provider

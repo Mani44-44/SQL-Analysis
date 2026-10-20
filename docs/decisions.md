@@ -105,3 +105,12 @@ Each entry has three parts: context, decision, and trade-off. New entries go at 
   - The runner seeds the demo workspace if it's missing (`--reseed` forces a rebuild), then persists `eval_runs` and `eval_results` to the app DB so the metrics page can show history.
   - A deterministic oracle provider fails on purpose in fixed patterns, so the expected metrics are exact and CI can check the whole harness without a key.
 - **Trade-off:** Re-seeding resets the demo's conversation history. CI always starts from an empty DB.
+
+## D-019: Frontend design direction
+- **Context:** The demo niche is Indian personal finance. The UI should feel like it belongs to that subject rather than look like a generic analytics template.
+- **Decision:**
+  - **Look:** a passbook or ledger theme, with ledger-green "paper", navy "ink", ruled table rows as the only decorative device, a teal accent, and stamp red used only for errors. Dark mode inverts ink and paper.
+  - **Type:** Bricolage Grotesque for display text and questions, Instrument Sans for the UI, and JetBrains Mono only for SQL.
+  - **Formatting:** amounts use Indian digit grouping (₹5,04,000) and compact lakh ticks on chart axes.
+  - **Accessibility:** a visible focus ring, reduced-motion support, `aria-sort` on sortable tables, and alt descriptions on charts.
+- **Finding:** Tailwind v4's scanner skips paths containing `[`, which is how Next.js names dynamic routes. Page implementations therefore live in `src/views/`, and the bracketed route files only re-export them.

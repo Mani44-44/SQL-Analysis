@@ -43,6 +43,30 @@ jobs:
       - name: Dependency audit
         run: uvx pip-audit --progress-spinner off -r <(uv export --no-hashes --no-dev --format requirements-txt) || echo "::warning::pip-audit reported issues"
 
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=high || echo "::warning::npm audit reported issues"
+
   secrets:
     runs-on: ubuntu-latest
     steps:

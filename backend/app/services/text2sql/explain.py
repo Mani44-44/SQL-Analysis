@@ -46,6 +46,15 @@ def fallback_explanation(result: PipelineResult) -> str:
             for c, v in zip(result.columns, result.rows[0], strict=False)
         ]
         return "Result — " + "; ".join(parts) + "."
+    first = result.rows[0]
+    if (
+        len(result.columns) == 2
+        and isinstance(first[0], str)
+        and isinstance(first[1], int | float)
+        and not isinstance(first[1], bool)
+    ):
+        label, value = result.columns[1].replace("_", " "), first[1]
+        return f"The first of {result.row_count:,} rows is {first[0]} with {label} {value:,.2f}."
     more = " (truncated)" if result.truncated else ""
     return (
         f"The query returned {result.row_count:,} rows{more} across {len(result.columns)} columns."

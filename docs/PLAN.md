@@ -17,7 +17,7 @@ The status column is updated as phases land.
 | P4 | Text-to-SQL pipeline and query API | done |
 | P5 | Charts, explanations, history, feedback, export | done |
 | P6 | Evaluation harness and CI eval | done |
-| P7 | Frontend | pending |
+| P7 | Frontend | done |
 | P8 | Auth, limits, observability | pending |
 | P9 | Deploy readiness and docs | pending |
 | P10 | Stretch | backlog |

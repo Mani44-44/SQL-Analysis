@@ -323,7 +323,9 @@ def validate_sql(
     _check_columns(tree, schema, used)
     _check_cross_joins(tree, schema, max_cross_product_rows)
 
-    return ValidatedQuery(sql=tree.sql(dialect="duckdb", comments=False), tables=used, tree=tree)
+    # Pretty form is for display / storage; execution regenerates from the tree (apply_row_cap).
+    pretty = tree.sql(dialect="duckdb", comments=False, pretty=True)
+    return ValidatedQuery(sql=pretty, tables=used, tree=tree)
 
 
 def apply_row_cap(query: ValidatedQuery, cap: int) -> str:

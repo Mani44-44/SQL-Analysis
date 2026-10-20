@@ -1,0 +1,126 @@
+@import "tailwindcss";
+/* Note: Tailwind's scanner skips paths containing "[" (Next dynamic routes), so page
+   implementations live in src/views and route files only re-export them. */
+
+/* Passbook / ledger palette. Light = ledger paper with ink; dark = ink page with paper text. */
+:root {
+  --paper: #eef2ee;
+  --paper-raised: #f7faf7;
+  --ink: #14213d;
+  --ink-soft: #3a4a66;
+  --muted: #5b6b63;
+  --rule: #b9c7be;
+  --rule-soft: #d6e0d9;
+  --accent: #0f766e;
+  --accent-ink: #ffffff;
+  --accent-soft: #d3ece8;
+  --stamp: #b42318;
+  --stamp-soft: #f6dcd9;
+  --amber: #8a5a00;
+  --amber-soft: #f6ead0;
+  --chart-1: #0f766e;
+  --chart-2: #3a4a66;
+  --chart-3: #c2410c;
+  --chart-4: #7c3aed;
+  --chart-5: #0369a1;
+  --chart-6: #a16207;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0e1726;
+    --paper-raised: #142035;
+    --ink: #e4eae6;
+    --ink-soft: #b7c4bc;
+    --muted: #8fa199;
+    --rule: #2c3b55;
+    --rule-soft: #1d2a40;
+    --accent: #2dd4bf;
+    --accent-ink: #062a27;
+    --accent-soft: #123a3a;
+    --stamp: #f87171;
+    --stamp-soft: #3a1717;
+    --amber: #fbbf24;
+    --amber-soft: #3a2c0b;
+    --chart-1: #2dd4bf;
+    --chart-2: #a5b4fc;
+    --chart-3: #fb923c;
+    --chart-4: #c4b5fd;
+    --chart-5: #7dd3fc;
+    --chart-6: #fcd34d;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-raised: var(--paper-raised);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-rule: var(--rule);
+  --color-rule-soft: var(--rule-soft);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-stamp: var(--stamp);
+  --color-stamp-soft: var(--stamp-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+html,
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Ruled ledger rows: the one decorative device, and it carries structure (table rows). */
+.ledger tbody tr {
+  border-bottom: 1px solid var(--rule-soft);
+}
+.ledger tbody tr:hover {
+  background: color-mix(in srgb, var(--accent-soft) 45%, transparent);
+}
+
+@keyframes ink-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.ink-in {
+  animation: ink-in 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-in {
+    animation: none;
+  }
+  * {
+    scroll-behavior: auto !important;
+  }
+}
