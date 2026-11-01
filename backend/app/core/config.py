@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3.5:9b"
     ollama_think: bool = False
-    ollama_num_ctx: int = 8192
+    ollama_num_ctx: int = 6144  # longest benchmark prompt is ~3.3k tokens incl. a retry
     ollama_timeout_s: float = 600.0
 
     # --- ingestion ---
