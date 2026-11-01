@@ -73,18 +73,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The CLI scans the whole history every time. The action scans `<first commit>^..`, which
+      # fails on a repository's first push.
+      - name: Scan full history with gitleaks
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz | tar xz gitleaks
+          ./gitleaks git --redact --verbose .
 
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Compose interpolates the whole file for every command, so the secret is needed from build on.
+      - name: Generate a throwaway JWT secret
+        run: |
+          secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$secret"
+          echo "JWT_SECRET=$secret" >> "$GITHUB_ENV"
       - name: Build images
         run: docker compose build
       - name: Start the stack
-        run: JWT_SECRET="$(openssl rand -base64 48)" docker compose up -d
+        run: docker compose up -d
       - name: Smoke test
         run: |
           for i in $(seq 1 60); do
