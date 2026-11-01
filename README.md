@@ -57,7 +57,7 @@ docker compose up --build       # UI on :3000, API on :8000
 
 SQLite and the DuckDB files are kept on a named volume. To keep the app DB in Postgres, add `-f docker-compose.postgres.yml`. Platform examples for Fly.io and Render are in [`deploy/`](deploy/).
 
-> The Docker files were written on a machine without Docker. The container's startup command was run locally in prod mode, and the CI `docker` job builds the stack, starts it and asks the demo a question on every push. That job hasn't run yet, because the repo hasn't been pushed. The Postgres override and the platform examples haven't been run at all.
+> On every push, the CI `docker` job builds both images, starts the compose stack, checks the health endpoints and asks the demo a question. It passes on GitHub Actions. The Postgres override and the Fly/Render examples haven't been run yet.
 
 **Deploying the UI and API separately:** put them under one registrable domain (for example `app.example.com` and `api.example.com`) and keep `COOKIE_SAMESITE=lax`. Two platform subdomains such as `*.fly.dev` or `*.onrender.com` count as different sites. That setup needs `SameSite=None; Secure`, which Safari blocks by default, so sign-in there looks like it worked but every request after it fails with a 401.
 
