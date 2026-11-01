@@ -175,6 +175,23 @@ def main(argv: list[str] | None = None) -> int:
                 concurrency=args.concurrency,
                 db=None if args.no_db else db,
             )
+            # A run where the model couldn't be reached measures the account, not the model:
+            # never report it, and never let it become a baseline.
+            unavailable = sum(o.error_type == "llm_unavailable" for o in report.outcomes)
+            if report.outcomes and unavailable == len(report.outcomes):
+                print(
+                    f"[error] every call failed with llm_unavailable ({config_name}). Check the API "
+                    "key, credit balance and network; no report or baseline was written.",
+                    file=sys.stderr,
+                )
+                return 3
+            if unavailable > 0.1 * len(report.outcomes):
+                print(
+                    f"[warn] {unavailable}/{len(report.outcomes)} calls failed with "
+                    "llm_unavailable; accuracy is understated and the baseline won't be updated.",
+                    file=sys.stderr,
+                )
+                args.update_baseline = False
             meta = {
                 "dataset": args.dataset + (" (smoke)" if args.smoke else ""),
                 "config": config_name,

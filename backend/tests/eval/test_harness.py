@@ -244,3 +244,38 @@ def test_regression_gate(tmp_path: Path) -> None:
     base.write_text(json.dumps({"status": "set", "smoke": {"accuracy": 0.80}}))
     assert _gate({"accuracy": 0.78}, base, "smoke", 5) == 0
     assert _gate({"accuracy": 0.70}, base, "smoke", 5) == 2
+
+
+def test_cli_refuses_run_where_model_is_unreachable(
+    db: Session, demo_ws: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import app.eval.run as run_mod
+    from app.services.llm.base import LLMUnavailableError
+
+    class Unreachable:
+        name = "anthropic"
+
+        def model_for(self, tier: object) -> str:
+            return "claude-opus-5-5"
+
+        def complete_json(self, *a: object, **kw: object) -> object:
+            raise LLMUnavailableError("credit balance too low")
+
+    monkeypatch.setattr(run_mod, "_provider", lambda name, cases: Unreachable())
+    monkeypatch.setattr(run_mod, "_setup_workspace", lambda reseed: (db, demo_ws))
+    baseline = tmp_path / "baseline.json"
+    baseline.write_text('{"status": "pending"}')
+    code = run_mod.main(
+        [
+            "--smoke",
+            "--no-db",
+            "--out",
+            str(tmp_path / "out"),
+            "--baseline",
+            str(baseline),
+            "--update-baseline",
+        ]
+    )
+    assert code == 3
+    assert json.loads(baseline.read_text())["status"] == "pending"
+    assert not (tmp_path / "out").exists() or not any((tmp_path / "out").iterdir())
