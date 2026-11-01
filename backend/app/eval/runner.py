@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import REPO_DIR, get_settings
 from app.db.models import EvalResult, EvalRun
+from app.eval.checkpoint import Checkpoint
 from app.eval.dataset import EvalCase, load_fewshot_pool
 from app.eval.error_category import categorize
 from app.eval.matching import gold_is_ordered, match_results
@@ -202,6 +203,7 @@ def run_benchmark(
     concurrency: int = 4,
     db: Session | None = None,
     progress: Callable[[CaseOutcome], None] | None = None,
+    checkpoint: Checkpoint | None = None,
 ) -> RunReport:
     config = make_config(config_name)
     pipeline = Text2SQLPipeline(provider, get_settings(), cache=None)
@@ -211,7 +213,9 @@ def run_benchmark(
             gold.get(c)
 
     jobs = [(c, r) for r in range(repeats) for c in cases]
-    outcomes: list[CaseOutcome] = []
+    done = checkpoint.outcomes if checkpoint is not None else {}
+    pending = [(c, r) for c, r in jobs if (c.id, r) not in done]
+    new: dict[tuple[str, int], CaseOutcome] = {}
 
     def work(job: tuple[EvalCase, int]) -> CaseOutcome:
         case, rep = job
@@ -226,10 +230,14 @@ def run_benchmark(
             )  # fmt: skip
 
     with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
-        for outcome in pool.map(work, jobs):
-            outcomes.append(outcome)
+        for outcome in pool.map(work, pending):
+            new[(outcome.case_id, outcome.repeat)] = outcome
+            if checkpoint is not None:
+                checkpoint.record(outcome)
             if progress:
                 progress(outcome)
+    # Resumed and fresh outcomes, in the original job order.
+    outcomes = [new.get((c.id, r)) or done[(c.id, r)] for c, r in jobs]
 
     report = RunReport(
         run_id=None,

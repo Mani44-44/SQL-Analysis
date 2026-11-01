@@ -21,8 +21,10 @@ from typing import Any
 
 from app.core.config import REPO_DIR, get_settings
 from app.core.logging import configure_logging
+from app.eval.checkpoint import Checkpoint, CheckpointMismatchError, checkpoint_path
 from app.eval.dataset import load_dataset
 from app.eval.matching import gold_is_ordered, match_results
+from app.eval.metrics import CaseOutcome, summarise
 from app.eval.report import (
     ablation_markdown,
     compare_markdown,
@@ -31,9 +33,27 @@ from app.eval.report import (
     summary_markdown,
     write_report,
 )
-from app.eval.runner import ABLATIONS, run_benchmark
+from app.eval.runner import ABLATIONS, git_sha, run_benchmark
+from app.prompts import load_prompt
+from app.services.llm import Tier
 
 DEFAULT_OUT = REPO_DIR / "eval_runs"
+
+
+def _progress_printer(config: str, total: int, checkpoint: Checkpoint | None) -> Any:
+    """One stderr line per scored case, so a long local run visibly makes progress."""
+    count = [len(checkpoint.outcomes) if checkpoint is not None else 0]
+
+    def show(o: CaseOutcome) -> None:
+        count[0] += 1
+        status = "ok" if o.correct else (o.error_type or "wrong")
+        print(
+            f"[{config}] {count[0]}/{total} {o.case_id} {status} {o.latency_ms / 1000:.1f}s",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    return show
 
 
 def _setup_workspace(reseed: bool) -> tuple[Any, str]:
@@ -136,6 +156,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--check-gold", action="store_true")
     p.add_argument("--no-db", action="store_true", help="do not persist the run to the app DB")
     p.add_argument("--compare", nargs=2, type=Path, metavar=("A_JSON", "B_JSON"))
+    p.add_argument(
+        "--resume",
+        action="store_true",
+        help="checkpoint every case; rerunning the same command skips finished configs and "
+        "continues an interrupted one",
+    )
+    p.add_argument("--fresh", action="store_true", help="with --resume: discard old checkpoints")
     args = p.parse_args(argv)
     configure_logging("WARNING", json_logs=False)
     if hasattr(sys.stdout, "reconfigure"):
@@ -168,7 +195,40 @@ def main(argv: list[str] | None = None) -> int:
         rows: list[tuple[str, dict[str, Any]]] = []
         exit_code = 0
         for config_name in [c.strip() for c in args.configs.split(",") if c.strip()]:
+            checkpoint = None
+            if args.resume:
+                cp_meta = {
+                    "dataset": args.dataset + ("-smoke" if args.smoke else ""),
+                    "model": provider.model_for(Tier.STRONG),
+                    "provider": provider.name,
+                    "config": config_name,
+                    "repeats": args.repeats,
+                    "git": git_sha(),
+                    "prompt": load_prompt("generate_sql").tag,
+                }
+                try:
+                    checkpoint = Checkpoint.open(
+                        checkpoint_path(args.out / "checkpoints", cp_meta),
+                        cp_meta,
+                        fresh=args.fresh,
+                    )
+                except CheckpointMismatchError as e:
+                    print(f"[error] {e}", file=sys.stderr)
+                    return 4
+                if checkpoint.done:
+                    outcomes = list(checkpoint.outcomes.values())
+                    print(f"[resume] {config_name}: already finished, skipping", file=sys.stderr)
+                    rows.append((config_name, summarise(outcomes)))
+                    continue
+                if checkpoint.outcomes:
+                    print(
+                        f"[resume] {config_name}: {len(checkpoint.outcomes)} case(s) already "
+                        "done, continuing",
+                        file=sys.stderr,
+                    )
             report = run_benchmark(
+                progress=_progress_printer(config_name, len(cases) * args.repeats, checkpoint),
+                checkpoint=checkpoint,
                 cases=cases,
                 provider=provider,
                 workspace_id=workspace_id,
@@ -223,6 +283,8 @@ def main(argv: list[str] | None = None) -> int:
             print(md)
             print(f"[report] {jp}\n[report] {mp}")
             rows.append((config_name, report.summary))
+            if checkpoint is not None:
+                checkpoint.mark_done()
 
             key = "smoke" if args.smoke else "full"
             if args.baseline:
