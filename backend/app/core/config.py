@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 
     # --- llm ---
-    llm_provider: Literal["auto", "anthropic", "mock"] = "auto"
+    llm_provider: Literal["auto", "anthropic", "mock", "ollama"] = "auto"
     anthropic_api_key: SecretStr | None = None
     llm_model_strong: str = "claude-opus-5-5"
     llm_model_fast: str = "claude-haiku-5-5"
@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     llm_max_tokens: int = 16000
     llm_timeout_s: float = 120.0
     llm_max_retries: int = 2
+    # Local models (LLM_PROVIDER=ollama): free offline runs, one model for both tiers.
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen3.5:9b"
+    ollama_think: bool = False
+    ollama_num_ctx: int = 8192
+    ollama_timeout_s: float = 600.0
 
     # --- ingestion ---
     max_upload_mb: int = 50
@@ -103,7 +109,7 @@ class Settings(BaseSettings):
     def use_mock_llm(self) -> bool:
         if self.llm_provider == "mock":
             return True
-        if self.llm_provider == "anthropic":
+        if self.llm_provider in ("anthropic", "ollama"):
             return False
         return self.anthropic_api_key is None
 

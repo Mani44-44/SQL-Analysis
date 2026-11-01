@@ -37,6 +37,10 @@ _provider: LLMProvider | None = None
 
 
 def build_provider(settings: Settings) -> LLMProvider:
+    if settings.llm_provider == "ollama":
+        from app.services.llm.ollama_provider import OllamaProvider
+
+        return OllamaProvider(settings)
     if settings.use_mock_llm:
         from app.services.llm.mock_fixtures import build_default_mock
 

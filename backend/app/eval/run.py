@@ -92,6 +92,8 @@ def _provider(name: str, cases: list[Any]) -> Any:
         settings = settings.model_copy(update={"llm_provider": "anthropic"})
     elif name == "mock":
         settings = settings.model_copy(update={"llm_provider": "mock"})
+    elif name == "ollama":
+        settings = settings.model_copy(update={"llm_provider": "ollama"})
     return build_provider(settings)
 
 
@@ -121,7 +123,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--configs", default="full", help=f"comma list from {sorted(ABLATIONS)}")
     p.add_argument("--repeats", type=int, default=1)
     p.add_argument("--concurrency", type=int, default=4)
-    p.add_argument("--provider", choices=["auto", "anthropic", "mock", "oracle"], default="auto")
+    p.add_argument(
+        "--provider", choices=["auto", "anthropic", "mock", "ollama", "oracle"], default="auto"
+    )
     p.add_argument("--out", type=Path, default=DEFAULT_OUT)
     p.add_argument("--baseline", type=Path, default=None)
     p.add_argument(
