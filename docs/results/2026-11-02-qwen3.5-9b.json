@@ -1,0 +1,728 @@
+{
+ "schema_only": {
+  "meta": {
+   "dataset": "finance_v1",
+   "config": "schema_only",
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "prompt": "generate_sql@v1",
+   "git": "46716fe",
+   "run_id": "31f3a2b8212441c99575fe5d3a145543"
+  },
+  "summary": {
+   "n_cases": 91,
+   "repeats": 1,
+   "accuracy": 0.4066,
+   "accuracy_ci95": [
+    0.3187,
+    0.5165
+   ],
+   "accuracy_per_repeat": [
+    0.4066
+   ],
+   "execution_accuracy": 0.3671,
+   "superset_accuracy": 0.4304,
+   "first_attempt_accuracy": 0.3671,
+   "kind_accuracy": 0.6667,
+   "valid_sql_rate": 0.9865,
+   "execution_error_rate": 0.0759,
+   "self_correction_recovery_rate": 0.0,
+   "mean_attempts": 0.937,
+   "latency_ms_p50": 20779,
+   "latency_ms_p95": 44086,
+   "cost_usd_total": 0.0,
+   "cost_usd_per_case": 0.0,
+   "tokens_in_total": 95464,
+   "tokens_out_total": 24664,
+   "by_difficulty": {
+    "easy": {
+     "n": 29.0,
+     "accuracy": 0.7241
+    },
+    "hard": {
+     "n": 14.0,
+     "accuracy": 0.1429
+    },
+    "medium": {
+     "n": 48.0,
+     "accuracy": 0.2917
+    }
+   },
+   "by_tag": {
+    "aggregation": {
+     "n": 31.0,
+     "accuracy": 0.5161
+    },
+    "ambiguous": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "date_logic": {
+     "n": 30.0,
+     "accuracy": 0.2
+    },
+    "filter": {
+     "n": 15.0,
+     "accuracy": 0.4
+    },
+    "glossary": {
+     "n": 26.0,
+     "accuracy": 0.0
+    },
+    "join": {
+     "n": 44.0,
+     "accuracy": 0.0909
+    },
+    "single_table": {
+     "n": 34.0,
+     "accuracy": 0.7353
+    },
+    "subquery": {
+     "n": 9.0,
+     "accuracy": 0.3333
+    },
+    "unanswerable": {
+     "n": 6.0,
+     "accuracy": 0.5
+    },
+    "window": {
+     "n": 4.0,
+     "accuracy": 0.0
+    }
+   },
+   "error_categories": {
+    "wrong_table": 20,
+    "wrong_join": 10,
+    "kind_mismatch": 9,
+    "execution_error": 5,
+    "wrong_aggregation": 4,
+    "wrong_columns": 3,
+    "wrong_filter": 2,
+    "validation_error": 1
+   }
+  }
+ },
+ "+samples": {
+  "meta": {
+   "dataset": "finance_v1",
+   "config": "+samples",
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "prompt": "generate_sql@v1",
+   "git": "46716fe",
+   "run_id": "02f482d07130415b80a1e3696396da84"
+  },
+  "summary": {
+   "n_cases": 91,
+   "repeats": 1,
+   "accuracy": 0.4725,
+   "accuracy_ci95": [
+    0.3736,
+    0.5714
+   ],
+   "accuracy_per_repeat": [
+    0.4725
+   ],
+   "execution_accuracy": 0.443,
+   "superset_accuracy": 0.5063,
+   "first_attempt_accuracy": 0.443,
+   "kind_accuracy": 0.6667,
+   "valid_sql_rate": 0.9863,
+   "execution_error_rate": 0.0886,
+   "self_correction_recovery_rate": 0.0,
+   "mean_attempts": 0.924,
+   "latency_ms_p50": 21688,
+   "latency_ms_p95": 38846,
+   "cost_usd_total": 0.0,
+   "cost_usd_per_case": 0.0,
+   "tokens_in_total": 166171,
+   "tokens_out_total": 23443,
+   "by_difficulty": {
+    "easy": {
+     "n": 29.0,
+     "accuracy": 0.8621
+    },
+    "hard": {
+     "n": 14.0,
+     "accuracy": 0.1429
+    },
+    "medium": {
+     "n": 48.0,
+     "accuracy": 0.3333
+    }
+   },
+   "by_tag": {
+    "aggregation": {
+     "n": 31.0,
+     "accuracy": 0.5484
+    },
+    "ambiguous": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "date_logic": {
+     "n": 30.0,
+     "accuracy": 0.2333
+    },
+    "filter": {
+     "n": 15.0,
+     "accuracy": 0.6
+    },
+    "glossary": {
+     "n": 26.0,
+     "accuracy": 0.0
+    },
+    "join": {
+     "n": 44.0,
+     "accuracy": 0.1591
+    },
+    "single_table": {
+     "n": 34.0,
+     "accuracy": 0.8235
+    },
+    "subquery": {
+     "n": 9.0,
+     "accuracy": 0.3333
+    },
+    "unanswerable": {
+     "n": 6.0,
+     "accuracy": 0.5
+    },
+    "window": {
+     "n": 4.0,
+     "accuracy": 0.0
+    }
+   },
+   "error_categories": {
+    "wrong_table": 22,
+    "kind_mismatch": 10,
+    "execution_error": 6,
+    "wrong_join": 5,
+    "wrong_aggregation": 2,
+    "wrong_columns": 1,
+    "hallucinated_column": 1,
+    "wrong_filter": 1
+   }
+  }
+ },
+ "+linking": {
+  "meta": {
+   "dataset": "finance_v1",
+   "config": "+linking",
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "prompt": "generate_sql@v1",
+   "git": "46716fe",
+   "run_id": "6457ddf3d4d842f389f121a8ea2a700f"
+  },
+  "summary": {
+   "n_cases": 91,
+   "repeats": 1,
+   "accuracy": 0.4835,
+   "accuracy_ci95": [
+    0.3956,
+    0.5824
+   ],
+   "accuracy_per_repeat": [
+    0.4835
+   ],
+   "execution_accuracy": 0.4557,
+   "superset_accuracy": 0.5063,
+   "first_attempt_accuracy": 0.4557,
+   "kind_accuracy": 0.6667,
+   "valid_sql_rate": 0.9865,
+   "execution_error_rate": 0.0886,
+   "self_correction_recovery_rate": 0.0,
+   "mean_attempts": 0.937,
+   "latency_ms_p50": 20810,
+   "latency_ms_p95": 38086,
+   "cost_usd_total": 0.0,
+   "cost_usd_per_case": 0.0,
+   "tokens_in_total": 152535,
+   "tokens_out_total": 22636,
+   "by_difficulty": {
+    "easy": {
+     "n": 29.0,
+     "accuracy": 0.8621
+    },
+    "hard": {
+     "n": 14.0,
+     "accuracy": 0.1429
+    },
+    "medium": {
+     "n": 48.0,
+     "accuracy": 0.3542
+    }
+   },
+   "by_tag": {
+    "aggregation": {
+     "n": 31.0,
+     "accuracy": 0.5806
+    },
+    "ambiguous": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "date_logic": {
+     "n": 30.0,
+     "accuracy": 0.2667
+    },
+    "filter": {
+     "n": 15.0,
+     "accuracy": 0.6
+    },
+    "glossary": {
+     "n": 26.0,
+     "accuracy": 0.0
+    },
+    "join": {
+     "n": 44.0,
+     "accuracy": 0.1591
+    },
+    "single_table": {
+     "n": 34.0,
+     "accuracy": 0.8235
+    },
+    "subquery": {
+     "n": 9.0,
+     "accuracy": 0.4444
+    },
+    "unanswerable": {
+     "n": 6.0,
+     "accuracy": 0.5
+    },
+    "window": {
+     "n": 4.0,
+     "accuracy": 0.0
+    }
+   },
+   "error_categories": {
+    "wrong_table": 21,
+    "kind_mismatch": 9,
+    "execution_error": 6,
+    "wrong_join": 5,
+    "wrong_filter": 3,
+    "wrong_columns": 1,
+    "wrong_aggregation": 1,
+    "hallucinated_column": 1
+   }
+  }
+ },
+ "+glossary": {
+  "meta": {
+   "dataset": "finance_v1",
+   "config": "+glossary",
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "prompt": "generate_sql@v1",
+   "git": "46716fe",
+   "run_id": "aac7045b55b541d18fe5538e6f4ad5f2"
+  },
+  "summary": {
+   "n_cases": 91,
+   "repeats": 1,
+   "accuracy": 0.5055,
+   "accuracy_ci95": [
+    0.4066,
+    0.6044
+   ],
+   "accuracy_per_repeat": [
+    0.5055
+   ],
+   "execution_accuracy": 0.4557,
+   "superset_accuracy": 0.5316,
+   "first_attempt_accuracy": 0.4557,
+   "kind_accuracy": 0.8333,
+   "valid_sql_rate": 0.92,
+   "execution_error_rate": 0.1772,
+   "self_correction_recovery_rate": 0.0,
+   "mean_attempts": 0.949,
+   "latency_ms_p50": 21730,
+   "latency_ms_p95": 44808,
+   "cost_usd_total": 0.0,
+   "cost_usd_per_case": 0.0,
+   "tokens_in_total": 175922,
+   "tokens_out_total": 24544,
+   "by_difficulty": {
+    "easy": {
+     "n": 29.0,
+     "accuracy": 0.7241
+    },
+    "hard": {
+     "n": 14.0,
+     "accuracy": 0.2143
+    },
+    "medium": {
+     "n": 48.0,
+     "accuracy": 0.4583
+    }
+   },
+   "by_tag": {
+    "aggregation": {
+     "n": 31.0,
+     "accuracy": 0.5161
+    },
+    "ambiguous": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "date_logic": {
+     "n": 30.0,
+     "accuracy": 0.3333
+    },
+    "filter": {
+     "n": 15.0,
+     "accuracy": 0.6
+    },
+    "glossary": {
+     "n": 26.0,
+     "accuracy": 0.0769
+    },
+    "join": {
+     "n": 44.0,
+     "accuracy": 0.2273
+    },
+    "single_table": {
+     "n": 34.0,
+     "accuracy": 0.7647
+    },
+    "subquery": {
+     "n": 9.0,
+     "accuracy": 0.4444
+    },
+    "unanswerable": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "window": {
+     "n": 4.0,
+     "accuracy": 0.0
+    }
+   },
+   "error_categories": {
+    "wrong_table": 11,
+    "execution_error": 8,
+    "wrong_join": 6,
+    "kind_mismatch": 6,
+    "validation_error": 4,
+    "wrong_columns": 3,
+    "wrong_filter": 3,
+    "hallucinated_column": 2,
+    "wrong_aggregation": 1,
+    "date_handling": 1
+   }
+  }
+ },
+ "+self_correction": {
+  "meta": {
+   "dataset": "finance_v1",
+   "config": "+self_correction",
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "prompt": "generate_sql@v1",
+   "git": "46716fe",
+   "run_id": "bd795e526d6e4a6e95e097ac1d234253"
+  },
+  "summary": {
+   "n_cases": 91,
+   "repeats": 1,
+   "accuracy": 0.5165,
+   "accuracy_ci95": [
+    0.4286,
+    0.6264
+   ],
+   "accuracy_per_repeat": [
+    0.5165
+   ],
+   "execution_accuracy": 0.4684,
+   "superset_accuracy": 0.5443,
+   "first_attempt_accuracy": 0.4684,
+   "kind_accuracy": 0.8333,
+   "valid_sql_rate": 0.9733,
+   "execution_error_rate": 0.1139,
+   "self_correction_recovery_rate": 0.0,
+   "mean_attempts": 1.215,
+   "latency_ms_p50": 20395,
+   "latency_ms_p95": 99386,
+   "cost_usd_total": 0.0,
+   "cost_usd_per_case": 0.0,
+   "tokens_in_total": 227291,
+   "tokens_out_total": 32932,
+   "by_difficulty": {
+    "easy": {
+     "n": 29.0,
+     "accuracy": 0.6897
+    },
+    "hard": {
+     "n": 14.0,
+     "accuracy": 0.2857
+    },
+    "medium": {
+     "n": 48.0,
+     "accuracy": 0.4792
+    }
+   },
+   "by_tag": {
+    "aggregation": {
+     "n": 31.0,
+     "accuracy": 0.5161
+    },
+    "ambiguous": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "date_logic": {
+     "n": 30.0,
+     "accuracy": 0.3667
+    },
+    "filter": {
+     "n": 15.0,
+     "accuracy": 0.6
+    },
+    "glossary": {
+     "n": 26.0,
+     "accuracy": 0.0769
+    },
+    "join": {
+     "n": 44.0,
+     "accuracy": 0.2727
+    },
+    "single_table": {
+     "n": 34.0,
+     "accuracy": 0.7353
+    },
+    "subquery": {
+     "n": 9.0,
+     "accuracy": 0.4444
+    },
+    "unanswerable": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "window": {
+     "n": 4.0,
+     "accuracy": 0.0
+    }
+   },
+   "error_categories": {
+    "wrong_table": 12,
+    "execution_error": 7,
+    "wrong_join": 6,
+    "kind_mismatch": 6,
+    "wrong_columns": 3,
+    "wrong_filter": 3,
+    "wrong_aggregation": 2,
+    "hallucinated_column": 2,
+    "date_handling": 2,
+    "other": 1
+   }
+  }
+ },
+ "+few_shot": {
+  "meta": {
+   "dataset": "finance_v1",
+   "config": "+few_shot",
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "prompt": "generate_sql@v1",
+   "git": "46716fe",
+   "run_id": "62d1bef9c2ed44ac9552abf77029391c"
+  },
+  "summary": {
+   "n_cases": 91,
+   "repeats": 1,
+   "accuracy": 0.4835,
+   "accuracy_ci95": [
+    0.3846,
+    0.5824
+   ],
+   "accuracy_per_repeat": [
+    0.4835
+   ],
+   "execution_accuracy": 0.443,
+   "superset_accuracy": 0.5823,
+   "first_attempt_accuracy": 0.443,
+   "kind_accuracy": 0.75,
+   "valid_sql_rate": 1.0,
+   "execution_error_rate": 0.0506,
+   "self_correction_recovery_rate": 0.0,
+   "mean_attempts": 1.063,
+   "latency_ms_p50": 19407,
+   "latency_ms_p95": 97169,
+   "cost_usd_total": 0.0,
+   "cost_usd_per_case": 0.0,
+   "tokens_in_total": 278882,
+   "tokens_out_total": 27359,
+   "by_difficulty": {
+    "easy": {
+     "n": 29.0,
+     "accuracy": 0.6897
+    },
+    "hard": {
+     "n": 14.0,
+     "accuracy": 0.1429
+    },
+    "medium": {
+     "n": 48.0,
+     "accuracy": 0.4583
+    }
+   },
+   "by_tag": {
+    "aggregation": {
+     "n": 31.0,
+     "accuracy": 0.5806
+    },
+    "ambiguous": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "date_logic": {
+     "n": 30.0,
+     "accuracy": 0.2333
+    },
+    "filter": {
+     "n": 15.0,
+     "accuracy": 0.5333
+    },
+    "glossary": {
+     "n": 26.0,
+     "accuracy": 0.0769
+    },
+    "join": {
+     "n": 44.0,
+     "accuracy": 0.2273
+    },
+    "single_table": {
+     "n": 34.0,
+     "accuracy": 0.7353
+    },
+    "subquery": {
+     "n": 9.0,
+     "accuracy": 0.3333
+    },
+    "unanswerable": {
+     "n": 6.0,
+     "accuracy": 0.6667
+    },
+    "window": {
+     "n": 4.0,
+     "accuracy": 0.0
+    }
+   },
+   "error_categories": {
+    "wrong_table": 17,
+    "kind_mismatch": 8,
+    "wrong_columns": 6,
+    "wrong_join": 5,
+    "execution_error": 4,
+    "wrong_filter": 3,
+    "date_handling": 3,
+    "wrong_aggregation": 1
+   }
+  }
+ },
+ "full": {
+  "meta": {
+   "dataset": "finance_v1",
+   "config": "full",
+   "provider": "ollama",
+   "model": "qwen3.5:9b",
+   "prompt": "generate_sql@v1",
+   "git": "46716fe",
+   "run_id": "2cd7e7998b3449a8a9f11233ffe2fec3"
+  },
+  "summary": {
+   "n_cases": 91,
+   "repeats": 1,
+   "accuracy": 0.5055,
+   "accuracy_ci95": [
+    0.4066,
+    0.6044
+   ],
+   "accuracy_per_repeat": [
+    0.5055
+   ],
+   "execution_accuracy": 0.4557,
+   "superset_accuracy": 0.5443,
+   "first_attempt_accuracy": 0.443,
+   "kind_accuracy": 0.8333,
+   "valid_sql_rate": 0.96,
+   "execution_error_rate": 0.1519,
+   "self_correction_recovery_rate": 0.0227,
+   "mean_attempts": 1.329,
+   "latency_ms_p50": 21459,
+   "latency_ms_p95": 119122,
+   "cost_usd_total": 0.0,
+   "cost_usd_per_case": 0.0,
+   "tokens_in_total": 263900,
+   "tokens_out_total": 39345,
+   "by_difficulty": {
+    "easy": {
+     "n": 29.0,
+     "accuracy": 0.7931
+    },
+    "hard": {
+     "n": 14.0,
+     "accuracy": 0.1429
+    },
+    "medium": {
+     "n": 48.0,
+     "accuracy": 0.4375
+    }
+   },
+   "by_tag": {
+    "aggregation": {
+     "n": 31.0,
+     "accuracy": 0.4839
+    },
+    "ambiguous": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "date_logic": {
+     "n": 30.0,
+     "accuracy": 0.3
+    },
+    "filter": {
+     "n": 15.0,
+     "accuracy": 0.6667
+    },
+    "glossary": {
+     "n": 26.0,
+     "accuracy": 0.0769
+    },
+    "join": {
+     "n": 44.0,
+     "accuracy": 0.2045
+    },
+    "single_table": {
+     "n": 34.0,
+     "accuracy": 0.7941
+    },
+    "subquery": {
+     "n": 9.0,
+     "accuracy": 0.4444
+    },
+    "unanswerable": {
+     "n": 6.0,
+     "accuracy": 0.8333
+    },
+    "window": {
+     "n": 4.0,
+     "accuracy": 0.0
+    }
+   },
+   "error_categories": {
+    "wrong_join": 12,
+    "execution_error": 9,
+    "wrong_table": 9,
+    "kind_mismatch": 6,
+    "hallucinated_column": 3,
+    "wrong_columns": 2,
+    "wrong_filter": 2,
+    "wrong_aggregation": 1,
+    "other": 1
+   }
+  }
+ }
+}

@@ -71,18 +71,36 @@ The UI, safety checks and charts all still work this way. Set the key for real a
 
 ## Results
 
+### Claude (production models)
+
 | Configuration | Execution accuracy (95% CI) | First-attempt | Clarify/unanswerable | Median latency | Cost / question |
 |---|---|---|---|---|---|
 | full (production) | *pending keyed run* | — | — | — | — |
 | schema_only → +samples → +linking → +glossary → +self_correction → +few_shot | *pending keyed run* | — | — | — | — |
 
-These numbers need a real model run, which hasn't been done yet. To produce them:
+These need a run with an Anthropic API key, which hasn't been done yet:
 
 ```bash
 cd backend
-uv run python -m app.eval.run --configs schema_only,+samples,+linking,+glossary,+self_correction,+few_shot,full --repeats 3
+uv run python -m app.eval.run --configs schema_only,+samples,+linking,+glossary,+self_correction,+few_shot,full --resume
 uv run python -m app.eval.run --baseline ../eval_data/baseline.json --update-baseline   # turns on the CI regression gate
 ```
+
+### Offline: qwen3.5:9b on a laptop (free, via Ollama)
+
+A local 9B model on a 6 GB laptop GPU, all 91 questions, temperature 0. **This measures a small open model, not Claude.**
+
+| Config | Overall accuracy (95% CI) | SQL execution | Clarify / unanswerable |
+|---|---|---|---|
+| schema_only | 40.7% (31.9–51.6) | 36.7% | 66.7% |
+| +samples | 47.2% (37.4–57.1) | 44.3% | 66.7% |
+| +linking | 48.4% (39.6–58.2) | 45.6% | 66.7% |
+| +glossary | 50.5% (40.7–60.4) | 45.6% | 83.3% |
+| +self_correction | 51.6% (42.9–62.6) | 46.8% | 83.3% |
+| +few_shot | 48.4% (38.5–58.2) | 44.3% | 75.0% |
+| **full (production)** | **50.5% (40.7–60.4)** | **45.6%** | **83.3%** |
+
+The pipeline adds 9 net correct answers over schema-only (12 fixed, 3 broken). The model is good at single-table questions (79%) and weak at joins (20%) and glossary terms (8%). Single steps are within the ±10-point noise of a 91-question set, so read the ablation as directional. The full analysis is in [docs/results/2026-11-02-qwen3.5-9b.md](docs/results/2026-11-02-qwen3.5-9b.md). To reproduce it, run `ollama pull qwen3.5:9b`, then `uv run python -m app.eval.run --provider ollama --configs full --concurrency 1 --resume`.
 
 The scoring rules, the dataset breakdown (29 easy, 48 medium and 14 hard cases, including 6 clarify and 6 unanswerable) and the known limitations are in [docs/evaluation.md](docs/evaluation.md).
 
